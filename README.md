@@ -1,2 +1,3 @@
-# Karigar-gold-ledger
-Gold ledger for a jewellery workshop: exact fine-weight maths, karigar balances, loss alerts and AI scale-photo reading. FastAPI + React + PostgreSQL.
+# Karigar Gold Ledger and Old-Gold Desk
+
+A production-grade web application for a jewellery manufacturing workshop in Coimbatore tracking daily gold issues, receipts, scrap, and filings across ~40 karigars with exact milligram and basis-point arithmetic, loss-drift alerts, daily stock statements with Tally CSV export, and human-confirmed AI vision assistance for scale and karat meter readings.
