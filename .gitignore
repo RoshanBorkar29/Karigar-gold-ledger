@@ -21,6 +21,7 @@ dist-ssr/
 .env.*
 !.env.example
 
-# Uploads & Artifacts
+# Local Database & Uploads
 uploads/
 *.log
+.pgdata/

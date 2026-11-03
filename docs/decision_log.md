@@ -75,3 +75,4 @@ This document records the architectural, mathematical, and implementation decisi
   2. Write pure Python standard library functions with native types.
 - **Why Chosen**: The core arithmetic of the domain represents the enterprise business rules. Keeping it decoupled from frameworks and database ORMs ensures it can be tested in sub-millisecond isolation, reused across services, workers, scripts, CLI tools, or migrated across frameworks without touching the core math.
 - **Trade-off**: Pydantic schemas and database models must wrap or call these functions rather than embedding the domain logic directly within ORM hooks.
+
