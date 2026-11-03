@@ -15,12 +15,41 @@ Error conventions:
 """
 
 
+def _validate_int(val: int, name: str) -> None:
+    """Ensure value is strictly an int and not a bool, float, or other type."""
+    if type(val) is not int:
+        raise TypeError(f"{name} must be an integer, got {type(val).__name__}")
+
+
+def _validate_weight(mg: int, name: str = "Weight") -> None:
+    """Validate weight in milligrams."""
+    _validate_int(mg, name)
+    if mg < 0:
+        raise ValueError(f"{name} cannot be negative: {mg}")
+
+
+def _validate_purity(bp: int, name: str = "Purity basis points") -> None:
+    """Validate purity in basis points (1 to 10000)."""
+    _validate_int(bp, name)
+    if bp <= 0 or bp > 10000:
+        raise ValueError(f"{name} must be in range 1..10000 (0.01% - 100.00%), got {bp}")
+
+
+def _validate_wastage(bp: int, name: str = "Wastage basis points") -> None:
+    """Validate wastage in basis points (0 to 10000)."""
+    _validate_int(bp, name)
+    if bp < 0 or bp > 10000:
+        raise ValueError(f"{name} must be in range 0..10000 (0.00% - 100.00%), got {bp}")
+
+
 def fine_weight_mg(gross_mg: int, purity_bp: int) -> int:
     """Calculate fine gold weight in milligrams from gross weight and purity basis points.
 
     Formula: (gross_mg * purity_bp + 5000) // 10000 (half-up rounding to nearest milligram).
     """
-    raise NotImplementedError
+    _validate_weight(gross_mg, "Gross weight")
+    _validate_purity(purity_bp, "Purity basis points")
+    return (gross_mg * purity_bp + 5000) // 10000
 
 
 def allowed_wastage_mg(issued_fine_mg: int, wastage_bp: int) -> int:
@@ -28,7 +57,9 @@ def allowed_wastage_mg(issued_fine_mg: int, wastage_bp: int) -> int:
 
     Formula: (issued_fine_mg * wastage_bp + 5000) // 10000 (half-up rounding to nearest milligram).
     """
-    raise NotImplementedError
+    _validate_weight(issued_fine_mg, "Issued fine weight")
+    _validate_wastage(wastage_bp, "Wastage basis points")
+    return (issued_fine_mg * wastage_bp + 5000) // 10000
 
 
 def fmt_g(mg: int) -> str:
@@ -36,7 +67,8 @@ def fmt_g(mg: int) -> str:
 
     Example: 103004 -> '103.004', 5 -> '0.005', 0 -> '0.000'.
     """
-    raise NotImplementedError
+    _validate_weight(mg, "Weight")
+    return f"{mg // 1000}.{mg % 1000:03d}"
 
 
 def fmt_purity(bp: int) -> str:
@@ -44,7 +76,8 @@ def fmt_purity(bp: int) -> str:
 
     Example: 9160 -> '91.60', 10000 -> '100.00'.
     """
-    raise NotImplementedError
+    _validate_purity(bp, "Purity basis points")
+    return f"{bp // 100}.{bp % 100:02d}"
 
 
 def parse_g(text: str) -> int:
@@ -53,7 +86,32 @@ def parse_g(text: str) -> int:
     Accepts up to 3 decimal places (e.g. '112.450', '112.45', '112').
     Rejects negatives, empty strings, non-numeric strings, exponent formats, and internal spaces.
     """
-    raise NotImplementedError
+    if type(text) is not str:
+        raise TypeError(f"Input must be a string, got {type(text).__name__}")
+    s = text.strip()
+    if not s:
+        raise ValueError("Input string is empty")
+    if " " in s:
+        raise ValueError("Input contains whitespace inside number")
+    if "-" in s or "+" in s or "," in s:
+        raise ValueError("Invalid characters in weight input")
+    if s.count(".") > 1:
+        raise ValueError("Multiple decimal points in weight input")
+
+    if "." in s:
+        int_str, frac_str = s.split(".")
+        if not int_str or not frac_str:
+            raise ValueError("Decimal number must have digits before and after the decimal point")
+        if not int_str.isdigit() or not frac_str.isdigit():
+            raise ValueError("Weight contains non-digit characters")
+        if len(frac_str) > 3:
+            raise ValueError(f"Weight cannot have more than 3 decimal places: '{frac_str}'")
+        frac_mg = int(frac_str.ljust(3, "0"))
+        return int(int_str) * 1000 + frac_mg
+
+    if not s.isdigit():
+        raise ValueError("Weight contains non-digit characters")
+    return int(s) * 1000
 
 
 def parse_purity(text: str) -> int:
@@ -62,4 +120,32 @@ def parse_purity(text: str) -> int:
     Accepts up to 2 decimal places (e.g. '91.60', '91.6', '91', '100.00').
     Must be strictly > 0 and <= 100.00 (1 to 10000 basis points).
     """
-    raise NotImplementedError
+    if type(text) is not str:
+        raise TypeError(f"Input must be a string, got {type(text).__name__}")
+    s = text.strip()
+    if not s:
+        raise ValueError("Input string is empty")
+    if " " in s:
+        raise ValueError("Input contains whitespace inside number")
+    if "-" in s or "+" in s or "," in s:
+        raise ValueError("Invalid characters in purity input")
+    if s.count(".") > 1:
+        raise ValueError("Multiple decimal points in purity input")
+
+    if "." in s:
+        int_str, frac_str = s.split(".")
+        if not int_str or not frac_str:
+            raise ValueError("Decimal number must have digits before and after the decimal point")
+        if not int_str.isdigit() or not frac_str.isdigit():
+            raise ValueError("Purity contains non-digit characters")
+        if len(frac_str) > 2:
+            raise ValueError(f"Purity cannot have more than 2 decimal places: '{frac_str}'")
+        bp = int(int_str) * 100 + int(frac_str.ljust(2, "0"))
+    else:
+        if not s.isdigit():
+            raise ValueError("Purity contains non-digit characters")
+        bp = int(s) * 100
+
+    if bp <= 0 or bp > 10000:
+        raise ValueError(f"Purity must be in range 1..10000 basis points (0.01% - 100.00%), got {bp}")
+    return bp
