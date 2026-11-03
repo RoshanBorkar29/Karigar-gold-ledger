@@ -76,3 +76,86 @@ This document records the architectural, mathematical, and implementation decisi
 - **Why Chosen**: The core arithmetic of the domain represents the enterprise business rules. Keeping it decoupled from frameworks and database ORMs ensures it can be tested in sub-millisecond isolation, reused across services, workers, scripts, CLI tools, or migrated across frameworks without touching the core math.
 - **Trade-off**: Pydantic schemas and database models must wrap or call these functions rather than embedding the domain logic directly within ORM hooks.
 
+---
+
+### Decision 8: Append-Only Ledger Tables vs In-Place Mutation
+- **Decision**: Design ledger tables (`issues`, `receipts`, `vault_movements`) as strictly append-only; disallow `UPDATE` or `DELETE` operations at both the application and ORM levels.
+- **Options Considered**:
+  1. Editable transactions with updating balances.
+  2. Soft deletes (`is_deleted` column) and in-place row edits.
+  3. Immutable, append-only journal entries (with reversals or adjusting entries for corrections).
+- **Why Chosen**: Gold ledger auditing requires absolute immutability. If an issue or receipt record could be updated in place, historical balance reconstruction across dates becomes unreliable, and accountability for physical metal slips is broken. Adjustments must always be recorded as compensatory append entries.
+- **Trade-off**: Corrections require creating new reversal transactions rather than quick row edits.
+
+---
+
+### Decision 9: Dynamically Computed vs Persisted Stored Balance
+- **Decision**: Compute running balances dynamically from ledger records using SQL aggregation (`SUM(issues.fine_mg) - SUM(receipts.fine_mg)`) rather than storing a mutable `current_balance_mg` on the karigar row.
+- **Options Considered**:
+  1. Mutable cached balance column on `karigars` updated via triggers or application code.
+  2. Dynamically computed balance on read via SQL sum over immutable transactions.
+- **Why Chosen**: Storing a running balance creates double-entry synchronization bugs, deadlocks under concurrent issues/receipts, and drift if any query bypasses the update lock. PostgreSQL can aggregate tens of thousands of rows with `(karigar_id, entry_date)` indexes in sub-millisecond time.
+- **Trade-off**: Read queries aggregate transaction rows; mitigable by day-level materialized snapshotting if transaction volume reaches millions.
+
+---
+
+### Decision 10: Wastage Percentage Snapshot on Job Creation vs Dynamic Lookups
+- **Decision**: Persist an immutable `wastage_bp` snapshot on the `jobs` row at the moment the job order is opened, rather than joining against the `karigar_category_wastages` master table dynamically.
+- **Options Considered**:
+  1. Dynamic join to `karigar_category_wastages` on every receipt reconciliation.
+  2. Snapshot agreed `wastage_bp` directly on the `Job` record upon creation.
+- **Why Chosen**: Karigar contractual wastage agreements may be renegotiated over time (e.g., from 3.00% to 2.80%). If historical receipts joined dynamically to the master rate, past jobs would retroactively recalculate allowed wastage and produce false loss drift alerts.
+- **Trade-off**: Minor data denormalization on the `jobs` table.
+
+---
+
+### Decision 11: Database-Level Named CHECK Constraints vs API-Only Validation
+- **Decision**: Enforce physical domain constraints directly in PostgreSQL schemas using named `CheckConstraint` clauses (`gross_mg > 0`, `fine_mg <= gross_mg`, `0 < purity_bp <= 10000`, `(kind = 'finished') OR (huid IS NULL)`).
+- **Options Considered**:
+  1. Rely solely on Pydantic and FastAPI validation layers.
+  2. Enforce constraints at both the application layer and relational database schema layer with explicit constraint names.
+- **Why Chosen**: Application-level validation can be bypassed by direct database queries, script migrations, seeders, or background workers. In financial and bullion software, the database must act as the ultimate fortress preventing invalid physical states.
+- **Trade-off**: Requires database migrations when range rules or business criteria expand.
+
+---
+
+### Decision 12: Integer Paise for Monetary Valuation
+- **Decision**: Store monetary amounts (`value_paise`, `rate_paise_per_g`) as `BIGINT` paise ($1\text{ INR} = 100\text{ paise}$).
+- **Options Considered**:
+  1. `NUMERIC(12, 2)` or `DECIMAL` columns.
+  2. Floating-point rupees.
+  3. 64-bit integer paise (`BIGINT`).
+- **Why Chosen**: Aligns with the core project principle of zero floating-point arithmetic. High-value old-gold desk purchases (tens of lakhs of rupees) calculated in paise avoid fractional round-off errors and stay within native 64-bit integer operations.
+- **Trade-off**: UI layers must format rupees with 2 decimal places by dividing by 100 on display.
+
+---
+
+### Decision 13: Unified Receipts Table with Kind Discriminator vs Multi-Table Polymorphism
+- **Decision**: Store finished jewellery, scrap, and filings in a single unified `receipts` table discriminated by `kind` (`finished`, `scrap`, `filings`), with a conditional constraint for `huid`.
+- **Options Considered**:
+  1. Three distinct tables (`finished_receipts`, `scrap_receipts`, `filing_receipts`).
+  2. Single `receipts` table with an enum `kind` and check constraint `(kind = 'finished') OR (huid IS NULL)`.
+- **Why Chosen**: From an accounting standpoint, finished pieces, scrap, and filings all serve the exact same financial ledger role: returning issued gold from the karigar to workshop custody. A unified table simplifies balance aggregation (`SUM(receipts.fine_mg)`) and receipt numbering (`txn_id`) while conditional constraints safeguard hallmark HUID fields.
+- **Trade-off**: Finished-specific columns (`huid`) are nullable on scrap and filing records.
+
+---
+
+### Decision 14: PostgreSQL Native ENUM Types vs Plain VARCHAR
+- **Decision**: Use native PostgreSQL ENUM types (`user_role`, `job_status`, `receipt_kind`, `payment_mode`, `vault_movement_kind`, `loss_alert_status`, `explanation_source`, `ai_reading_kind`, `ai_reading_outcome`).
+- **Options Considered**:
+  1. Unconstrained `VARCHAR` strings with application-level validation.
+  2. Foreign key lookup tables for status types.
+  3. Native PostgreSQL ENUM types mapped through SQLAlchemy.
+- **Why Chosen**: Postgres ENUMs provide storage efficiency (4 bytes per value instead of variable strings) and strict database-level domain safety against invalid state mutations or typos.
+- **Trade-off**: Adding new enum values in Postgres requires an `ALTER TYPE ... ADD VALUE` migration.
+
+---
+
+### Decision 15: Docker Compose with Environment Variable Interpolation for Local Development
+- **Decision**: Provide a clean `docker-compose.yml` for local Postgres orchestration that reads credentials via environment variable defaults (`${POSTGRES_USER:-postgres}`, `${POSTGRES_PASSWORD:-postgres}`) without hardcoded credentials.
+- **Options Considered**:
+  1. Hardcoding default database credentials in `docker-compose.yml`.
+  2. Requiring manual local PostgreSQL installation.
+  3. Environment-driven `docker-compose.yml` service.
+- **Why Chosen**: Guarantees zero secret leakage into version control while enabling one-command local developer onboarding (`docker compose up -d`) across macOS, Linux, and Windows environments.
+- **Trade-off**: Developers without Docker Desktop must run a local PostgreSQL service directly.
