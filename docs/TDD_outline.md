@@ -141,6 +141,15 @@ erDiagram
         timestamptz created_at
     }
 
+    entry_voids {
+        int id PK
+        int issue_id FK
+        int receipt_id FK
+        string reason
+        int voided_by FK
+        timestamptz created_at
+    }
+
     users ||--o{ issues : "issues"
     users ||--o{ receipts : "receipts"
     users ||--o{ vault_movements : "records"
@@ -162,6 +171,10 @@ erDiagram
 
     karigars ||--o{ loss_alerts : "flagged_for"
     jobs ||--o{ loss_alerts : "job_reference"
+
+    issues ||--o| entry_voids : "voided_by"
+    receipts ||--o| entry_voids : "voided_by"
+    users ||--o{ entry_voids : "voids_authorized"
 ```
 
 ### Table Specifications & Constraints
@@ -172,6 +185,7 @@ erDiagram
 - **`jobs`**: Workshop job orders capturing immutable wastage snapshot at creation. Enforces `closed_on` is null if open, and not null if closed.
 - **`issues`**: Gold issued to karigar. Enforces `gross_mg > 0`, `0 < purity_bp <= 10000`, and `0 < fine_mg <= gross_mg`.
 - **`receipts`**: Finished jewellery, scrap, and filings. Enforces `(kind = 'finished') OR (huid IS NULL)` to guarantee hallmarks only exist on finished items.
+- **`entry_voids`**: Append-only transaction void audit log. Enforces `length(reason) >= 5`, mutually exclusive target references (`(issue_id IS NOT NULL AND receipt_id IS NULL) OR (issue_id IS NULL AND receipt_id IS NOT NULL)`), and unique constraints per issue/receipt ensuring exactly-once voiding.
 - **`vault_movements`**: Bullion deposits, refiner despatches, and refiner returns.
 - **`old_gold_purchases`**: Customer scrap gold intake with purity testing, deductions, and PAN recording.
 - **`loss_alerts`**: Statistical loss-drift records generated prior to month-end.

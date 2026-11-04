@@ -159,3 +159,77 @@ This document records the architectural, mathematical, and implementation decisi
   3. Environment-driven `docker-compose.yml` service.
 - **Why Chosen**: Guarantees zero secret leakage into version control while enabling one-command local developer onboarding (`docker compose up -d`) across macOS, Linux, and Windows environments.
 - **Trade-off**: Developers without Docker Desktop must run a local PostgreSQL service directly.
+
+---
+
+### Decision 16: Void Table vs Negative Entries vs Editable Rows
+- **Decision**: Implement an explicit audit table `entry_voids` to mark transactions invalid rather than allowing row edits or inserting synthetic negative transactions.
+- **Options Considered**:
+  1. Mutable rows with `UPDATE` / `DELETE` operations.
+  2. Inserting compensatory negative issues/receipts (e.g. `-100,000 mg`).
+  3. Dedicated `entry_voids` table referencing the original transaction with unique foreign keys and a mandatory audit reason.
+- **Why Chosen**: In-place edits destroy the audit trail, violating physical slip reconciliation. Negative entries complicate domain rules and database range check constraints (which enforce `fine_mg > 0` and `gross_mg > 0`). The dedicated `entry_voids` table maintains 100% append-only immutability, enforces exactly-once voiding via unique constraints (`uq_entry_voids_issue_id`, `uq_entry_voids_receipt_id`), requires a human-readable explanation ($\ge 5$ characters), and enables simple `LEFT JOIN entry_voids ... WHERE entry_voids.id IS NULL` filtering.
+- **Trade-off**: Requires an additional join table in balance and settlement queries.
+
+---
+
+### Decision 17: Database Sequence vs MAX()+1 for Transaction IDs
+- **Decision**: Use a dedicated PostgreSQL sequence `txn_seq` (starting at 30500) to generate sequential transaction identifiers (`TX-<number>`).
+- **Options Considered**:
+  1. `SELECT MAX(id) + 1` or parsing the highest `TX-XXXXX` string.
+  2. UUID / GUID strings (e.g. `TX-550e8400...`).
+  3. PostgreSQL sequence `txn_seq` via `nextval('txn_seq')`.
+- **Why Chosen**: `MAX() + 1` queries suffer from race conditions, table lock contention, and duplicate key collisions under concurrent clerk submissions. Random UUIDs are unreadable on physical workshop gold slips and jewellery tags. A database sequence guarantees atomic, crash-safe, strictly monotonic identifier generation without locking the tables.
+- **Trade-off**: Failed or rolled-back transactions consume sequence numbers, creating harmless gaps in sequence numbering.
+
+---
+
+### Decision 18: Pure Settlement Function Decoupled from Database Code
+- **Decision**: Keep `settle()` in `app/services/settlement.py` as a pure, stateless function with zero database or framework dependencies, accepting plain integers and returning a frozen `Settlement` dataclass.
+- **Options Considered**:
+  1. Embedding settlement math directly inside ORM models or database query methods.
+  2. A pure calculation function separate from persistence and I/O concerns.
+- **Why Chosen**: Decoupling mathematical domain rules from database sessions enables instantaneous, comprehensive unit testing without needing a database connection. It ensures exact mathematical consistency whether invoked during a single job settlement, in batch reconciliations, or by future background worker jobs.
+- **Trade-off**: Service callers must first load aggregated weights from the database before calling `settle()`.
+
+---
+
+### Decision 19: Domain Exceptions vs HTTP Exceptions in Service Layer
+- **Decision**: Raise domain-specific Python exceptions (`LedgerError`, `JobClosedError`, `InvalidEntryError`, `OverReturnError`, `NotFoundError`) within the service layer instead of FastAPI `HTTPException`.
+- **Options Considered**:
+  1. Raising `fastapi.HTTPException(status_code=400, detail=...)` directly in services.
+  2. Returning status codes or error response tuples.
+  3. Raising typed domain exceptions and translating them to HTTP responses at the API route layer.
+- **Why Chosen**: Coupling service methods to HTTP abstractions violates separation of concerns and prevents reusing service functions in CLI commands, seed scripts, background automations, or message consumers. Typed domain exceptions make unit and integration tests clear and expressive.
+- **Trade-off**: API route handlers must catch domain exceptions and map them to appropriate HTTP status codes (e.g., `404` for `NotFoundError`, `422` for `InvalidEntryError`).
+
+---
+
+### Decision 20: Single Aggregate SQL Queries vs In-Memory Python Loops
+- **Decision**: Calculate karigar running balances and workshop-wide statements using a single SQL query with `GROUP BY` and conditional aggregations (`CASE WHEN`), avoiding row-by-row Python iteration.
+- **Options Considered**:
+  1. Fetching all issues and receipts into Python memory and aggregating in application loops.
+  2. Executing `N+1` database queries (one query per karigar and one per job).
+  3. Single SQL aggregate query joining jobs, non-voided issues, and non-voided receipts.
+- **Why Chosen**: In a jewellery workshop with ~40 karigars and thousands of daily issue/receipt transactions, Python loops incur massive memory overhead, high network latency, and $O(N)$ database round-trips. PostgreSQL computes aggregate sums over indexed columns in microseconds, returning ready-to-consume balance totals in one network round-trip.
+- **Trade-off**: SQL queries require careful construct with subqueries or CTEs to prevent Cartesian product duplication between issues and receipts.
+
+---
+
+### Decision 21: Reject vs Warn on Over-Return
+- **Decision**: Strictly reject any receipt or issue void that would cause returned gold to exceed issued fine gold for a job order (`OverReturnError`).
+- **Options Considered**:
+  1. Allowing over-returns with a warning banner or alert flag.
+  2. Rejecting over-returns at the service boundary.
+- **Why Chosen**: Gold cannot materialize out of thin air. In jewellery manufacturing, if an artisan returns more gold than was issued for a specific job order, scrap from a different job or personal metal is being cross-contaminated. Allowing over-returns obscures individual job wastage tracking and corrupts loss alerts. Surplus scrap must be handled as a separate intake or re-issued under a dedicated job.
+- **Trade-off**: Workshop managers cannot dump leftover scrap from multiple jobs into a single job's receipt without an explicit transfer entry.
+
+---
+
+### Decision 22: Preserving Migration History vs Editing Initial Migration
+- **Decision**: Create a new, forward-only Alembic migration (`e4a71b29df31`) for `entry_voids` and `txn_seq` instead of modifying the initial schema migration (`c726705440a6`).
+- **Options Considered**:
+  1. Editing migration 1 and recreating the database schema from scratch.
+  2. Adding a new migration script with explicit upgrade and downgrade operations.
+- **Why Chosen**: Production database evolution requires strictly immutable, forward-only migration chains. Altering historical migrations breaks deployed environments, corrupts Alembic version history across developer machines, and destroys schema provenance.
+- **Trade-off**: Requires maintaining multiple migration files in the repository.
