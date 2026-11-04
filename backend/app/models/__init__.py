@@ -1,6 +1,7 @@
 """SQLAlchemy ORM models package exporting all database entity definitions."""
 
 from app.models.ai_reading import AiReading
+from app.models.entry_void import EntryVoid
 from app.models.issue import Issue
 from app.models.item_category import ItemCategory
 from app.models.job import Job
@@ -20,6 +21,7 @@ __all__ = [
     "Job",
     "Issue",
     "Receipt",
+    "EntryVoid",
     "VaultMovement",
     "OldGoldPurchase",
     "LossAlert",
