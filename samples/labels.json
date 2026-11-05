@@ -1,1 +1,107 @@
-[]
+[
+  {
+    "image": "scale_clear_1.jpg",
+    "kind": "scale",
+    "true_value": "112.450",
+    "unit": "g",
+    "expect": "ok"
+  },
+  {
+    "image": "scale_clear_2.jpg",
+    "kind": "scale",
+    "true_value": "103.004",
+    "unit": "g",
+    "expect": "ok"
+  },
+  {
+    "image": "scale_clear_3.jpg",
+    "kind": "scale",
+    "true_value": "3.023",
+    "unit": "g",
+    "expect": "ok"
+  },
+  {
+    "image": "scale_clear_4.jpg",
+    "kind": "scale",
+    "true_value": "50.000",
+    "unit": "g",
+    "expect": "ok"
+  },
+  {
+    "image": "scale_glare.jpg",
+    "kind": "scale",
+    "true_value": "112.450",
+    "unit": "g",
+    "expect": "ok"
+  },
+  {
+    "image": "scale_dim.jpg",
+    "kind": "scale",
+    "true_value": "25.500",
+    "unit": "g",
+    "expect": "ok"
+  },
+  {
+    "image": "scale_tilted.jpg",
+    "kind": "scale",
+    "true_value": "15.750",
+    "unit": "g",
+    "expect": "ok"
+  },
+  {
+    "image": "scale_blurry.jpg",
+    "kind": "scale",
+    "true_value": "42.120",
+    "unit": "g",
+    "expect": "ok"
+  },
+  {
+    "image": "scale_hard_decimal.jpg",
+    "kind": "scale",
+    "true_value": "10.005",
+    "unit": "g",
+    "expect": "ok"
+  },
+  {
+    "image": "scale_partly_covered.jpg",
+    "kind": "scale",
+    "true_value": "112.450",
+    "unit": "g",
+    "expect": "unreadable"
+  },
+  {
+    "image": "scale_wrong_unit.jpg",
+    "kind": "scale",
+    "true_value": "112.450",
+    "unit": "ct",
+    "expect": "wrong_unit"
+  },
+  {
+    "image": "scale_unreadable.jpg",
+    "kind": "scale",
+    "true_value": null,
+    "unit": null,
+    "expect": "unreadable"
+  },
+  {
+    "image": "karat_9160.jpg",
+    "kind": "karat",
+    "true_value": "91.60",
+    "unit": "%",
+    "expect": "ok"
+  },
+  {
+    "image": "karat_7500.jpg",
+    "kind": "karat",
+    "true_value": "75.00",
+    "unit": "%",
+    "expect": "ok"
+  },
+  {
+    "image": "karat_9990.jpg",
+    "kind": "karat",
+    "true_value": "99.90",
+    "unit": "%",
+    "expect": "ok"
+  }
+]
