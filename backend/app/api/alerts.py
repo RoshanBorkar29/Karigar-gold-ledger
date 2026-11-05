@@ -119,6 +119,7 @@ def get_karigar_drift_metrics(
         baseline_stddev_bp=res.baseline_stddev_bp,
         sample_size=res.sample_size,
         is_anomalous=res.is_anomalous,
+        explanation=res.explanation,
         suggested_explanation=res.explanation,
     )
 

@@ -39,25 +39,40 @@ class KarigarDriftResult:
 
 
 def evaluate_karigar_drift(session: Session, karigar_id: int) -> KarigarDriftResult:
-    """Evaluate statistical loss variance for a single artisan across jobs."""
+    """Evaluate statistical loss variance for a single artisan across jobs.
+
+    Requirements:
+    - Minimum 3 completed jobs required for baseline history (sample_size >= 3).
+      Otherwise returns is_anomalous=False with 'insufficient history (minimum 3 completed jobs required)'.
+    - Anomaly requires BOTH:
+      recent_loss_bp > baseline_mean_bp + 2 * baseline_stddev_bp AND
+      recent_loss_bp > baseline_mean_bp + 50.
+    """
     karigar = session.get(Karigar, karigar_id)
     if not karigar:
         raise ValueError(f"Karigar {karigar_id} not found")
 
-    # Fetch closed jobs for baseline
-    closed_jobs = session.execute(
-        select(Job).where(Job.karigar_id == karigar_id, Job.status == "closed").order_by(Job.id.asc())
-    ).scalars().all()
-
-    historical_losses: list[int] = []
-    for job in closed_jobs:
-        st = ledger.job_settlement(session, job.id)
-        historical_losses.append(st.excess_loss_bp)
+    # Fetch closed jobs ordered chronologically
+    all_closed_jobs = list(
+        session.execute(
+            select(Job)
+            .where(Job.karigar_id == karigar_id, Job.status == "closed")
+            .order_by(Job.opened_on.asc(), Job.id.asc())
+        )
+        .scalars()
+        .all()
+    )
 
     # Fetch open jobs to inspect recent active loss
-    open_jobs = session.execute(
-        select(Job).where(Job.karigar_id == karigar_id, Job.status == "open").order_by(Job.id.desc())
-    ).scalars().all()
+    open_jobs = list(
+        session.execute(
+            select(Job)
+            .where(Job.karigar_id == karigar_id, Job.status == "open")
+            .order_by(Job.opened_on.desc(), Job.id.desc())
+        )
+        .scalars()
+        .all()
+    )
 
     recent_losses: list[int] = []
     for job in open_jobs:
@@ -65,25 +80,66 @@ def evaluate_karigar_drift(session: Session, karigar_id: int) -> KarigarDriftRes
         if st.issued_fine_mg > 0:
             recent_losses.append(st.excess_loss_bp)
 
-    sample_size = len(historical_losses)
-    if sample_size > 0:
-        baseline_mean_bp = sum(historical_losses) // sample_size
-        variance = sum((x - baseline_mean_bp) ** 2 for x in historical_losses) // sample_size
-        baseline_stddev_bp = math.isqrt(variance)
-    else:
-        baseline_mean_bp = 0
-        baseline_stddev_bp = 0
-
+    # Determine baseline jobs vs recent jobs
     if recent_losses:
+        baseline_jobs = all_closed_jobs
         recent_loss_bp = sum(recent_losses) // len(recent_losses)
-    elif historical_losses:
-        recent_loss_bp = historical_losses[-1]
     else:
-        recent_loss_bp = 0
+        # All jobs closed: evaluate most recent completed jobs against historical baseline
+        if len(all_closed_jobs) >= 5:
+            baseline_jobs = all_closed_jobs[:-2]
+            recent_jobs = all_closed_jobs[-2:]
+        elif len(all_closed_jobs) >= 4:
+            baseline_jobs = all_closed_jobs[:-1]
+            recent_jobs = all_closed_jobs[-1:]
+        else:
+            baseline_jobs = all_closed_jobs
+            recent_jobs = all_closed_jobs[-1:] if all_closed_jobs else []
 
-    # Anomalous if recent loss exceeds baseline mean by more than 50 bp or 1 standard deviation
-    threshold = baseline_mean_bp + max(baseline_stddev_bp, 50)
-    is_anomalous = (recent_loss_bp > threshold) and (recent_loss_bp > 0)
+        recent_losses_from_closed: list[int] = []
+        for r_job in recent_jobs:
+            st = ledger.job_settlement(session, r_job.id)
+            recent_losses_from_closed.append(st.excess_loss_bp)
+
+        recent_loss_bp = (
+            sum(recent_losses_from_closed) // len(recent_losses_from_closed)
+            if recent_losses_from_closed
+            else 0
+        )
+
+    sample_size = len(baseline_jobs)
+
+    # Minimum history check: require at least 3 completed jobs for baseline
+    if sample_size < 3:
+        return KarigarDriftResult(
+            karigar_id=karigar.id,
+            karigar_code=karigar.code,
+            karigar_name=karigar.name,
+            recent_loss_bp=recent_loss_bp,
+            baseline_mean_bp=0,
+            baseline_stddev_bp=0,
+            sample_size=sample_size,
+            is_anomalous=False,
+            explanation=(
+                f"Artisan {karigar.name} ({karigar.code}) has insufficient history "
+                f"(minimum 3 completed jobs required)."
+            ),
+        )
+
+    historical_losses: list[int] = []
+    for job in baseline_jobs:
+        st = ledger.job_settlement(session, job.id)
+        historical_losses.append(st.excess_loss_bp)
+
+    baseline_mean_bp = sum(historical_losses) // sample_size
+    variance = sum((x - baseline_mean_bp) ** 2 for x in historical_losses) // sample_size
+    baseline_stddev_bp = math.isqrt(variance)
+
+    # Anomaly condition: BOTH 2 stddev AND 50 bp above baseline mean
+    is_anomalous = (
+        (recent_loss_bp > baseline_mean_bp + 2 * baseline_stddev_bp)
+        and (recent_loss_bp > baseline_mean_bp + 50)
+    )
 
     if is_anomalous:
         explanation = (
@@ -112,9 +168,13 @@ def evaluate_karigar_drift(session: Session, karigar_id: int) -> KarigarDriftRes
 
 def scan_and_generate_loss_alerts(session: Session) -> list[LossAlert]:
     """Scan all active artisans, evaluate loss drift, and record new alerts if anomalous."""
-    active_karigars = session.execute(
-        select(Karigar).where(Karigar.is_active == True).order_by(Karigar.code)  # noqa: E712
-    ).scalars().all()
+    active_karigars = list(
+        session.execute(
+            select(Karigar).where(Karigar.is_active == True).order_by(Karigar.code)  # noqa: E712
+        )
+        .scalars()
+        .all()
+    )
 
     created_alerts: list[LossAlert] = []
 

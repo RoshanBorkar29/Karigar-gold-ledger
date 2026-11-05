@@ -45,4 +45,5 @@ class LossDriftEvaluation(BaseModel):
     baseline_stddev_bp: int
     sample_size: int
     is_anomalous: bool
+    explanation: str
     suggested_explanation: str
