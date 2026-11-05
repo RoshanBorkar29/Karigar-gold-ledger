@@ -43,6 +43,7 @@ export default function IssueEntry() {
     new Date().toISOString().slice(0, 10)
   );
   const [note, setNote] = useState("");
+  const [confirmedReadingId, setConfirmedReadingId] = useState(null);
 
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState(null);
@@ -116,8 +117,9 @@ export default function IssueEntry() {
     // Keep 0 for preview on invalid syntax
   }
 
-  const handlePhotoConfirmed = ({ valueStr }) => {
+  const handlePhotoConfirmed = ({ readingId, valueStr }) => {
     setGrossInput(valueStr);
+    setConfirmedReadingId(readingId);
   };
 
   const handleSubmit = async (e) => {
@@ -164,6 +166,7 @@ export default function IssueEntry() {
         purity_bp: pBp,
         entry_date: entryDate,
         note: note.trim() || undefined,
+        ai_reading_id: confirmedReadingId || undefined,
       };
 
       const result = await api.createIssue(issuePayload);

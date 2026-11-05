@@ -13,8 +13,12 @@ class Settings(BaseSettings):
     JWT_EXPIRE_MINUTES: int = 1440
 
     GROQ_API_KEY: str = ""
-    GROQ_VISION_MODEL: str = "llama-3.2-11b-vision-preview"
-    GROQ_TEXT_MODEL: str = "llama-3.3-70b-versatile"
+    GROQ_VISION_MODEL: str | None = None
+    GROQ_TEXT_MODEL: str | None = None
+
+    # Client policy thresholds (assumptions to be confirmed with client accountant)
+    OLD_GOLD_HIGH_VALUE_THRESHOLD_PAISE: int = 20_000_000  # Rs 2,00,000 client policy threshold
+    OLD_GOLD_PAN_REQUIRED_THRESHOLD_PAISE: int = 20_000_000  # Rs 2,00,000 client policy threshold
 
     CORS_ORIGINS: str = "http://localhost:5173"
     VITE_API_URL: str = "http://localhost:8000"

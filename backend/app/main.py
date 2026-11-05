@@ -6,6 +6,8 @@ Configures CORS middleware, domain exception handlers, and mounts API routers.
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 from app.api import (
     ai,
@@ -21,6 +23,7 @@ from app.api import (
     stock,
 )
 from app.core.config import settings
+from app.core.limiter import limiter
 from app.services.errors import (
     InvalidEntryError,
     JobClosedError,
@@ -34,6 +37,9 @@ app = FastAPI(
     description="Operational ledger for bullion issues, returns, and wastage tracking.",
     version="0.1.0",
 )
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Configure CORS
 origins = [origin.strip() for origin in settings.CORS_ORIGINS.split(",") if origin.strip()]

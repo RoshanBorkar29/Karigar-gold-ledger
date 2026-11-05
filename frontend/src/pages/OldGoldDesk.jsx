@@ -43,6 +43,7 @@ export default function OldGoldDesk() {
   const [entryDate, setEntryDate] = useState(
     new Date().toISOString().slice(0, 10)
   );
+  const [confirmedReadingId, setConfirmedReadingId] = useState(null);
 
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState(null);
@@ -128,20 +129,19 @@ export default function OldGoldDesk() {
 
     setSubmitting(true);
     try {
+      const billNo = linkedBillNo.trim() || `OG-${Date.now().toString().slice(-6)}`;
+      const ratePaisePerG = Math.round(Number(ratePerGramRupees) * 100);
+
       const payload = {
-        customer_name: customerName.trim(),
-        customer_phone: customerPhone.trim() || undefined,
+        bill_no: billNo,
         gross_mg: grossMg,
-        deductions_mg: deductionsMg,
-        net_mg: netMg,
-        purity_bp: purityBp,
-        fine_mg: fineMg,
-        rate_per_gram_paise: Math.round(Number(ratePerGramRupees) * 100),
-        total_amount_paise: totalAmountPaise,
+        tested_purity_bp: purityBp,
+        deduction_mg: deductionsMg,
+        rate_paise_per_g: ratePaisePerG,
         payment_mode: paymentMode,
-        pan_number: isHighValue ? panNumber.trim().toUpperCase() : panNumber.trim().toUpperCase() || undefined,
-        linked_bill_no: linkedBillNo.trim() || undefined,
+        pan: panNumber.trim().toUpperCase() || undefined,
         entry_date: entryDate,
+        ai_reading_id: confirmedReadingId || undefined,
       };
 
       await api.createOldGoldPurchase(payload);
@@ -424,7 +424,10 @@ export default function OldGoldDesk() {
           <PhotoReader
             mode="karat"
             currentTypedValue={purityInput}
-            onReadingConfirmed={({ valueStr }) => setPurityInput(valueStr)}
+            onReadingConfirmed={({ readingId, valueStr }) => {
+              setPurityInput(valueStr);
+              setConfirmedReadingId(readingId);
+            }}
           />
 
           <div className="card-glass p-5 border border-slate-800 space-y-3">

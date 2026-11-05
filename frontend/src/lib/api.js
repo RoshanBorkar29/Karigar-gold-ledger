@@ -11,8 +11,9 @@ function getAuthHeader() {
 
 async function request(endpoint, options = {}) {
   const url = `${BASE_URL}${endpoint}`;
+  const isFormData = options.body instanceof FormData;
   const headers = {
-    "Content-Type": "application/json",
+    ...(!isFormData ? { "Content-Type": "application/json" } : {}),
     ...getAuthHeader(),
     ...options.headers,
   };
@@ -130,14 +131,26 @@ export const api = {
   createOldGoldPurchase: (data) => api.post("/api/old-gold", data),
 
   // 9. AI Vision & Explanations
-  readScalePhoto: (file_bytes_base64) =>
-    api.post("/api/ai/read-scale", { file_bytes_base64 }),
-  readKaratPhoto: (file_bytes_base64) =>
-    api.post("/api/ai/read-karat", { file_bytes_base64 }),
-  confirmReading: (id, clerk_confirmed_value, mismatch_confirmed = false) =>
+  readScalePhoto: (file) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return request("/api/ai/read-scale", {
+      method: "POST",
+      body: formData,
+    });
+  },
+  readKaratPhoto: (file) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return request("/api/ai/read-karat", {
+      method: "POST",
+      body: formData,
+    });
+  },
+  confirmReading: (id, confirmed_value, override = false) =>
     api.post(`/api/ai/readings/${id}/confirm`, {
-      clerk_confirmed_value,
-      mismatch_confirmed,
+      confirmed_value,
+      override,
     }),
   explainLoss: (karigar_id, job_id, additional_context) =>
     api.post("/api/ai/explain-loss", {

@@ -12,6 +12,7 @@ class IssueCreate(BaseModel):
     purity_bp: int = Field(..., gt=0, le=10000, description="Purity in basis points (e.g. 9160 = 91.60%)")
     entry_date: date
     note: str | None = None
+    ai_reading_id: int | None = None
 
 
 class IssueRead(BaseModel):

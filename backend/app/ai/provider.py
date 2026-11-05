@@ -12,6 +12,16 @@ def has_groq_key() -> bool:
     return bool(settings.GROQ_API_KEY and settings.GROQ_API_KEY.strip())
 
 
+def has_groq_vision_model() -> bool:
+    """Check if vision model is configured."""
+    return bool(settings.GROQ_VISION_MODEL and settings.GROQ_VISION_MODEL.strip())
+
+
+def has_groq_text_model() -> bool:
+    """Check if text model is configured."""
+    return bool(settings.GROQ_TEXT_MODEL and settings.GROQ_TEXT_MODEL.strip())
+
+
 def get_groq_client() -> Groq | None:
     """Retrieve or initialize singleton Groq API client."""
     global _client

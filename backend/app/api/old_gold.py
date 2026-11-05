@@ -8,7 +8,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, get_db, require_clerk_or_finance
-from app.core.gold import fine_weight_mg
+from app.core.gold import fine_weight_mg, fmt_g, fmt_purity
+from app.models.ai_reading import AiReading
 from app.models.old_gold_purchase import OldGoldPurchase
 from app.models.user import User
 from app.schemas.old_gold_purchase import OldGoldPurchaseCreate, OldGoldPurchaseRead
@@ -25,6 +26,32 @@ def record_old_gold_purchase(
     current_user: Annotated[User, Depends(require_clerk_or_finance)],
 ) -> OldGoldPurchaseRead:
     """Record customer old-gold purchase with purity testing, deductions, and statutory compliance checks."""
+    if data.ai_reading_id is not None:
+        ai_reading = db.get(AiReading, data.ai_reading_id)
+        if not ai_reading:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"AI reading ID {data.ai_reading_id} not found",
+            )
+        expected_val = (ai_reading.confirmed_value_text or ai_reading.ai_value_text or "").strip()
+        if ai_reading.kind == "scale":
+            typed_val = fmt_g(data.gross_mg)
+            if expected_val and typed_val != expected_val:
+                ai_reading.outcome = "mismatch_blocked"
+                db.commit()
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=f"Entered gross weight ({typed_val} g) does not match confirmed AI scale reading ({expected_val} g)",
+                )
+        elif ai_reading.kind == "karat":
+            typed_val = fmt_purity(data.tested_purity_bp)
+            if expected_val and typed_val != expected_val:
+                ai_reading.outcome = "mismatch_blocked"
+                db.commit()
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=f"Entered purity ({typed_val}%) does not match confirmed AI karat meter reading ({expected_val}%)",
+                )
     if data.deduction_mg >= data.gross_mg:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

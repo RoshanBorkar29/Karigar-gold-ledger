@@ -8,10 +8,11 @@ class ScaleReadingResponse(BaseModel):
     """Schema for weighing scale OCR extraction response."""
 
     reading_id: int
-    value_text: str = Field(..., description="Detected weight value string (e.g. '112.450')")
-    unit: str = Field(default="g", description="Detected scale unit")
-    confidence: int = Field(..., ge=0, le=100, description="Model extraction confidence score (0-100)")
-    readable: bool = Field(..., description="Whether the scale digits were clearly legible")
+    value_text: str | None = Field(default=None, description="Detected weight value string (e.g. '112.450')")
+    unit: str | None = Field(default="g", description="Detected scale unit")
+    confidence: int = Field(default=0, ge=0, le=100, description="Model extraction confidence score (0-100)")
+    readable: bool = Field(default=False, description="Whether the scale digits were clearly legible")
+    fallback: str | None = Field(default=None, description="Fallback mode: 'manual' if unreadable or API unavailable")
     model_name: str
 
 
@@ -19,10 +20,11 @@ class KaratMeterReadingResponse(BaseModel):
     """Schema for XRF / karat meter purity OCR extraction response."""
 
     reading_id: int
-    purity_text: str = Field(..., description="Detected purity percentage string (e.g. '91.60')")
-    unit: str = Field(default="%", description="Detected unit")
-    confidence: int = Field(..., ge=0, le=100)
-    readable: bool
+    purity_text: str | None = Field(default=None, description="Detected purity percentage string (e.g. '91.60')")
+    unit: str | None = Field(default="%", description="Detected unit")
+    confidence: int = Field(default=0, ge=0, le=100)
+    readable: bool = Field(default=False)
+    fallback: str | None = Field(default=None, description="Fallback mode: 'manual' if unreadable or API unavailable")
     model_name: str
 
 

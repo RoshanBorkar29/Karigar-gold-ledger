@@ -27,7 +27,7 @@ def generate_loss_explanation(
     baseline_pct = _fmt_bp(baseline_mean_bp)
 
     client = get_groq_client()
-    if client and has_groq_key():
+    if client and has_groq_key() and settings.GROQ_TEXT_MODEL:
         prompt = (
             f"You are a master goldsmith and jewellery workshop auditor in Coimbatore, India. "
             f"Write a concise, professional audit explanation (2-3 sentences) for finance records. "

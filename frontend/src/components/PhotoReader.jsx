@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import { Camera, CheckCircle2, AlertCircle, RefreshCw, Upload, Eye } from "lucide-react";
 import { api } from "../lib/api";
-import { fmtG, fmtPurity } from "../lib/format";
 
 export default function PhotoReader({
   mode = "scale", // "scale" | "karat"
@@ -11,6 +10,7 @@ export default function PhotoReader({
   const [loading, setLoading] = useState(false);
   const [imagePreview, setImagePreview] = useState(null);
   const [reading, setReading] = useState(null);
+  const [manualValue, setManualValue] = useState("");
   const [error, setError] = useState(null);
   const [mismatchWarning, setMismatchWarning] = useState(false);
 
@@ -22,60 +22,47 @@ export default function PhotoReader({
 
     setError(null);
     setReading(null);
+    setManualValue("");
     setMismatchWarning(false);
     setLoading(true);
 
-    const reader = new FileReader();
-    reader.onload = async () => {
-      try {
-        const base64Data = reader.result;
-        setImagePreview(base64Data);
+    try {
+      setImagePreview(URL.createObjectURL(file));
 
-        let result;
-        if (isScale) {
-          result = await api.readScalePhoto(base64Data);
-        } else {
-          result = await api.readKaratPhoto(base64Data);
-        }
-        setReading(result);
-
-        // Check mismatch with typed value if clerk has already typed something
-        if (currentTypedValue && currentTypedValue.trim() !== "") {
-          const aiValue = isScale ? fmtG(result.raw_value_mg) : fmtPurity(result.raw_value_bp);
-          if (aiValue !== currentTypedValue.trim()) {
-            setMismatchWarning(true);
-          }
-        }
-      } catch (err) {
-        setError(err.message || "Failed to analyze photo");
-      } finally {
-        setLoading(false);
+      let result;
+      if (isScale) {
+        result = await api.readScalePhoto(file);
+      } else {
+        result = await api.readKaratPhoto(file);
       }
-    };
-    reader.onerror = () => {
-      setError("Failed to read image file");
+      setReading(result);
+
+      const aiVal = isScale ? result.value_text : result.purity_text;
+      if (result.readable && aiVal && currentTypedValue && currentTypedValue.trim() !== "") {
+        if (aiVal.trim() !== currentTypedValue.trim()) {
+          setMismatchWarning(true);
+        }
+      }
+    } catch (err) {
+      setError(err.message || "Failed to analyze photo");
+    } finally {
       setLoading(false);
-    };
-    reader.readAsDataURL(file);
+    }
   };
 
-  const handleApplyValue = async (overrideMismatch = false) => {
+  const handleApplyExtractedValue = async (overrideMismatch = false) => {
     if (!reading) return;
+    const extractedVal = isScale ? reading.value_text : reading.purity_text;
+    if (!extractedVal) return;
+
     try {
       setLoading(true);
-      const appliedValue = isScale
-        ? fmtG(reading.raw_value_mg)
-        : fmtPurity(reading.raw_value_bp);
-
-      // Confirm with AI audit trail endpoint
-      await api.confirmReading(reading.id, appliedValue, overrideMismatch);
+      await api.confirmReading(reading.reading_id, extractedVal, overrideMismatch);
 
       if (onReadingConfirmed) {
         onReadingConfirmed({
-          readingId: reading.id,
-          valueStr: appliedValue,
-          mg: reading.raw_value_mg,
-          bp: reading.raw_value_bp,
+          readingId: reading.reading_id,
+          valueStr: extractedVal,
         });
       }
       setMismatchWarning(false);
@@ -85,6 +72,28 @@ export default function PhotoReader({
       setLoading(false);
     }
   };
+
+  const handleApplyManualValue = async () => {
+    if (!reading || !manualValue.trim()) return;
+
+    try {
+      setLoading(true);
+      await api.confirmReading(reading.reading_id, manualValue.trim(), true);
+
+      if (onReadingConfirmed) {
+        onReadingConfirmed({
+          readingId: reading.reading_id,
+          valueStr: manualValue.trim(),
+        });
+      }
+    } catch (err) {
+      setError(err.message || "Failed to confirm manual entry");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const isFallback = reading && (reading.fallback === "manual" || !reading.readable);
 
   return (
     <div className="card-glass p-4 border border-slate-700/80 bg-slate-900/60 rounded-lg">
@@ -105,12 +114,12 @@ export default function PhotoReader({
         <label className="flex-1 w-full flex flex-col items-center justify-center p-4 border-2 border-dashed border-slate-700 hover:border-yellow-500/50 rounded-lg cursor-pointer bg-slate-800/40 transition">
           <Upload className="w-5 h-5 text-slate-400 mb-1" />
           <span className="text-xs font-medium text-slate-300">
-            {imagePreview ? "Choose another photo" : "Upload scale readout photo"}
+            {imagePreview ? "Choose another photo" : isScale ? "Upload scale readout photo" : "Upload karatmeter printout photo"}
           </span>
           <span className="text-[10px] text-slate-500 mt-0.5">PNG, JPG, WEBP (Max 5MB)</span>
           <input
             type="file"
-            accept="image/*"
+            accept="image/png,image/jpeg,image/webp"
             capture="environment"
             onChange={handleFileChange}
             className="hidden"
@@ -147,7 +156,46 @@ export default function PhotoReader({
         </div>
       )}
 
-      {reading && (
+      {/* Fallback to Manual Entry */}
+      {isFallback && (
+        <div className="mt-4 p-3 bg-amber-950/40 border border-amber-700/60 rounded-lg space-y-3">
+          <div className="flex items-start gap-2 text-amber-200 text-xs">
+            <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold">AI Reading Unavailable / Unreadable</p>
+              <p className="text-[11px] text-amber-300/80 mt-0.5">
+                The digits could not be verified automatically. Please verify the physical instrument and enter the reading manually below.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1">
+              <input
+                type="text"
+                value={manualValue}
+                onChange={(e) => setManualValue(e.target.value)}
+                placeholder={isScale ? "e.g. 112.450" : "e.g. 91.60"}
+                className="input-base font-mono text-sm pr-8"
+              />
+              <span className="absolute right-3 top-2 text-xs text-slate-400 font-mono">
+                {isScale ? "g" : "%"}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={handleApplyManualValue}
+              disabled={!manualValue.trim()}
+              className="btn-gold text-xs py-2 px-3 whitespace-nowrap"
+            >
+              Apply Manual Value
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Legible Extraction */}
+      {reading && !isFallback && (
         <div className="mt-4 p-3 bg-slate-800/70 border border-slate-700 rounded-lg">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -155,12 +203,12 @@ export default function PhotoReader({
               <span className="text-xs font-semibold text-slate-200">
                 Extracted:{" "}
                 <span className="text-yellow-400 font-mono text-sm ml-1">
-                  {isScale ? `${fmtG(reading.raw_value_mg)} g` : `${fmtPurity(reading.raw_value_bp)} %`}
+                  {isScale ? `${reading.value_text} g` : `${reading.purity_text} %`}
                 </span>
               </span>
             </div>
             <span className="text-[11px] text-slate-400 font-mono">
-              Confidence: {Math.round(reading.confidence_score * 100)}%
+              Confidence: {reading.confidence}%
             </span>
           </div>
 
@@ -179,7 +227,7 @@ export default function PhotoReader({
           <div className="mt-3 flex items-center justify-end gap-2">
             <button
               type="button"
-              onClick={() => handleApplyValue(mismatchWarning)}
+              onClick={() => handleApplyExtractedValue(mismatchWarning)}
               className="btn-gold text-xs py-1.5 px-3"
             >
               Use Extracted Value

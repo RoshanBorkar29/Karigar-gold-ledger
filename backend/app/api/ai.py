@@ -2,12 +2,14 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.ai.explain import generate_loss_explanation
+from app.ai.validators import validate_upload_file
 from app.ai.vision_reader import extract_karat_reading, extract_scale_reading
 from app.api.deps import get_db, require_clerk_or_finance, require_finance_head
+from app.core.limiter import limiter
 from app.models.ai_reading import AiReading
 from app.models.karigar import Karigar
 from app.models.user import User
@@ -25,27 +27,34 @@ router = APIRouter(prefix="/ai", tags=["ai vision & explanations"])
 
 
 @router.post("/read-scale", response_model=ScaleReadingResponse)
+@limiter.limit("20/minute")
 async def read_scale_photo(
+    request: Request,
     file: Annotated[UploadFile, File(...)],
     db: Annotated[Session, Depends(get_db)],
     current_user: Annotated[User, Depends(require_clerk_or_finance)],
 ) -> ScaleReadingResponse:
     """Upload weighing scale LCD photo, extract digital reading, and record audit log."""
     content = await file.read()
-    if not content:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Uploaded file is empty")
+    try:
+        validate_upload_file(content, file.content_type)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
     res = extract_scale_reading(content, filename=file.filename or "scale.jpg")
+
+    is_fallback = res.get("fallback") == "manual" or not res.get("readable")
+    outcome = "fallback_manual" if is_fallback else "pending"
 
     reading = AiReading(
         kind="scale",
         image_path=file.filename or "scale_upload.jpg",
         model_name=res["model_name"],
-        ai_value_text=res["value"],
-        ai_unit=res["unit"],
+        ai_value_text=res["value"] or "",
+        ai_unit=res["unit"] or "g",
         ai_confidence=res["confidence"],
         ai_readable=res["readable"],
-        outcome="pending",
+        outcome=outcome,
         created_by=current_user.id,
     )
     db.add(reading)
@@ -58,32 +67,40 @@ async def read_scale_photo(
         unit=res["unit"],
         confidence=res["confidence"],
         readable=res["readable"],
+        fallback=res.get("fallback"),
         model_name=res["model_name"],
     )
 
 
 @router.post("/read-karat", response_model=KaratMeterReadingResponse)
+@limiter.limit("20/minute")
 async def read_karat_meter_photo(
+    request: Request,
     file: Annotated[UploadFile, File(...)],
     db: Annotated[Session, Depends(get_db)],
     current_user: Annotated[User, Depends(require_clerk_or_finance)],
 ) -> KaratMeterReadingResponse:
     """Upload karat meter display photo, extract purity percentage, and record audit log."""
     content = await file.read()
-    if not content:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Uploaded file is empty")
+    try:
+        validate_upload_file(content, file.content_type)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
     res = extract_karat_reading(content, filename=file.filename or "karat.jpg")
+
+    is_fallback = res.get("fallback") == "manual" or not res.get("readable")
+    outcome = "fallback_manual" if is_fallback else "pending"
 
     reading = AiReading(
         kind="karat",
         image_path=file.filename or "karat_upload.jpg",
         model_name=res["model_name"],
-        ai_value_text=res["purity"],
-        ai_unit=res["unit"],
+        ai_value_text=res["purity"] or "",
+        ai_unit=res["unit"] or "%",
         ai_confidence=res["confidence"],
         ai_readable=res["readable"],
-        outcome="pending",
+        outcome=outcome,
         created_by=current_user.id,
     )
     db.add(reading)
@@ -96,6 +113,7 @@ async def read_karat_meter_photo(
         unit=res["unit"],
         confidence=res["confidence"],
         readable=res["readable"],
+        fallback=res.get("fallback"),
         model_name=res["model_name"],
     )
 
@@ -124,7 +142,9 @@ def confirm_or_override_reading(
 
 
 @router.post("/explain-loss", response_model=LossExplanationResponse)
+@limiter.limit("15/minute")
 def explain_karigar_loss(
+    request: Request,
     data: LossExplanationRequest,
     db: Annotated[Session, Depends(get_db)],
     _: Annotated[User, Depends(require_finance_head)],
