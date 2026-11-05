@@ -8,6 +8,10 @@ import {
   Flame,
   Scale,
   Lock,
+  ArrowRightLeft,
+  CheckCircle2,
+  AlertCircle,
+  PlusCircle,
 } from "lucide-react";
 import AppShell from "../components/layout/AppShell";
 import GoldNumber from "../components/GoldNumber";
@@ -15,6 +19,7 @@ import LoadingState from "../components/LoadingState";
 import ErrorState from "../components/ErrorState";
 import { useAuth } from "../lib/auth";
 import { api } from "../lib/api";
+import { parseG } from "../lib/format";
 
 export default function DailyStock() {
   const { isFinanceHead } = useAuth();
@@ -26,6 +31,17 @@ export default function DailyStock() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [exporting, setExporting] = useState(false);
+
+  // Vault Movement Form states
+  const [movementKind, setMovementKind] = useState("bullion_in");
+  const [movementWeightInput, setMovementWeightInput] = useState("");
+  const [movementDate, setMovementDate] = useState(
+    new Date().toISOString().slice(0, 10)
+  );
+  const [movementNote, setMovementNote] = useState("");
+  const [submittingMovement, setSubmittingMovement] = useState(false);
+  const [movementError, setMovementError] = useState(null);
+  const [movementSuccess, setMovementSuccess] = useState(null);
 
   const fetchStock = async () => {
     if (!isFinanceHead) return;
@@ -53,6 +69,44 @@ export default function DailyStock() {
       alert("Export failed: " + err.message);
     } finally {
       setExporting(false);
+    }
+  };
+
+  const handleRecordMovement = async (e) => {
+    e.preventDefault();
+    setMovementError(null);
+    setMovementSuccess(null);
+
+    let fineMg;
+    try {
+      fineMg = parseG(movementWeightInput);
+    } catch (err) {
+      setMovementError(err.message || "Invalid weight format");
+      return;
+    }
+
+    if (fineMg <= 0) {
+      setMovementError("Fine gold weight must be strictly positive");
+      return;
+    }
+
+    setSubmittingMovement(true);
+    try {
+      await api.createVaultMovement({
+        kind: movementKind,
+        fine_mg: fineMg,
+        entry_date: movementDate,
+        note: movementNote.trim() || undefined,
+      });
+
+      setMovementSuccess("Vault bullion movement recorded successfully.");
+      setMovementWeightInput("");
+      setMovementNote("");
+      fetchStock();
+    } catch (err) {
+      setMovementError(err.message || "Failed to record vault movement");
+    } finally {
+      setSubmittingMovement(false);
     }
   };
 
@@ -186,6 +240,108 @@ export default function DailyStock() {
                 {statement.total_fine_mg.toLocaleString()} mg total pure
               </span>
             </div>
+          </div>
+
+          {/* Vault Bullion Movement Form (Finance Head Only) */}
+          <div className="card-glass p-5 border border-slate-800 bg-slate-900/60 rounded-lg space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-2">
+                <ArrowRightLeft className="w-4 h-4 text-yellow-400" />
+                <h3 className="text-sm font-semibold text-slate-100">
+                  Record Vault Bullion Movement
+                </h3>
+              </div>
+              <span className="text-xs text-slate-400 font-mono">
+                Finance Operation
+              </span>
+            </div>
+
+            {movementSuccess && (
+              <div className="p-3 rounded bg-emerald-950/40 border border-emerald-800 text-emerald-300 text-xs flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+                <span>{movementSuccess}</span>
+              </div>
+            )}
+
+            {movementError && (
+              <div className="p-3 rounded bg-rose-950/40 border border-rose-800 text-rose-300 text-xs flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+                <span>{movementError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleRecordMovement} className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  Movement Kind
+                </label>
+                <select
+                  value={movementKind}
+                  onChange={(e) => setMovementKind(e.target.value)}
+                  className="input-base"
+                >
+                  <option value="bullion_in">Bullion In (Vault Deposit)</option>
+                  <option value="to_refiner">To Refiner (Scrap Recovery)</option>
+                  <option value="from_refiner">From Refiner (Pure Gold In)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  Fine Weight (Grams)
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    required
+                    placeholder="100.000"
+                    value={movementWeightInput}
+                    onChange={(e) => setMovementWeightInput(e.target.value)}
+                    className="input-base font-mono pr-8"
+                  />
+                  <span className="absolute right-3 top-2.5 text-xs text-slate-500 font-mono">
+                    g
+                  </span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  Entry Date
+                </label>
+                <input
+                  type="date"
+                  required
+                  value={movementDate}
+                  onChange={(e) => setMovementDate(e.target.value)}
+                  className="input-base font-mono"
+                />
+              </div>
+
+              <div>
+                <button
+                  type="submit"
+                  disabled={submittingMovement}
+                  className="w-full btn-gold py-2.5 text-xs flex items-center justify-center gap-2"
+                >
+                  <PlusCircle className="w-4 h-4" />
+                  {submittingMovement ? "Writing to Vault..." : "Commit Movement"}
+                </button>
+              </div>
+
+              <div className="md:col-span-4">
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  Reference Note (Optional)
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. MMTC Bullion invoice #8841 or refinery batch lot #12"
+                  value={movementNote}
+                  onChange={(e) => setMovementNote(e.target.value)}
+                  className="input-base text-xs"
+                />
+              </div>
+            </form>
           </div>
 
           {/* Breakdown Table of Gold with Karigars */}

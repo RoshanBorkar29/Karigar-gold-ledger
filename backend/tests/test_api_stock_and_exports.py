@@ -192,3 +192,50 @@ def test_stock_statement_and_tally_csv_flow(client: TestClient, auth_tokens, ses
     assert "CONSOLIDATED TOTAL" in csv_text
     assert "431.680" in csv_text
     assert "500.000" in csv_text
+
+
+def test_vault_movements_api_and_balance_check(client: TestClient, auth_tokens):
+    """Test POST/GET /api/stock/movements, role permissions, and to_refiner balance checks."""
+    c_head = auth_tokens["clerk_headers"]
+    f_head = auth_tokens["finance_headers"]
+
+    # 1. Clerk gets 403 Forbidden on POST and GET
+    clerk_post = client.post(
+        "/api/stock/movements",
+        json={"kind": "bullion_in", "fine_mg": 100000, "entry_date": "2026-11-01"},
+        headers=c_head,
+    )
+    assert clerk_post.status_code == 403
+
+    clerk_get = client.get("/api/stock/movements", headers=c_head)
+    assert clerk_get.status_code == 403
+
+    # 2. Finance head successfully records bullion_in
+    f_post = client.post(
+        "/api/stock/movements",
+        json={"kind": "bullion_in", "fine_mg": 100000, "entry_date": "2026-11-01", "note": "Primary bullion receipt"},
+        headers=f_head,
+    )
+    assert f_post.status_code == 201
+    movement_data = f_post.json()
+    assert movement_data["kind"] == "bullion_in"
+    assert movement_data["fine_mg"] == 100000
+
+    # 3. GET /api/stock/movements returns the list
+    f_get = client.get("/api/stock/movements", headers=f_head)
+    assert f_get.status_code == 200
+    movements_list = f_get.json()
+    assert len(movements_list) >= 1
+    assert any(m["id"] == movement_data["id"] for m in movements_list)
+
+    # 4. to_refiner exceeding vault fine gold balance returns 400 Bad Request
+    # Current vault balance is at most 100,000 mg; trying to transfer 200,000 mg
+    over_transfer = client.post(
+        "/api/stock/movements",
+        json={"kind": "to_refiner", "fine_mg": 200000, "entry_date": "2026-11-01", "note": "Excess refiner dispatch"},
+        headers=f_head,
+    )
+    assert over_transfer.status_code == 400
+    assert "exceeds available vault fine gold balance" in over_transfer.json()["detail"]
+
+

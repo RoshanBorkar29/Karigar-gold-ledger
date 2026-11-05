@@ -19,6 +19,7 @@ from app.models.old_gold_purchase import OldGoldPurchase
 from app.models.receipt import Receipt
 from app.models.vault_movement import VaultMovement
 from app.services import ledger
+from app.services.errors import InvalidEntryError
 from app.services.ledger import KarigarBalanceSummaryRow
 
 
@@ -147,3 +148,53 @@ def generate_tally_csv(statement: DailyStockStatement) -> str:
     ])
 
     return output.getvalue()
+
+
+def create_vault_movement(
+    session: Session,
+    kind: str,
+    fine_mg: int,
+    entry_date: date,
+    user_id: int,
+    note: str | None = None,
+) -> VaultMovement:
+    """Record a vault bullion movement with balance check for to_refiner transfers."""
+    if kind not in ("bullion_in", "to_refiner", "from_refiner"):
+        raise InvalidEntryError(f"Invalid vault movement kind '{kind}'. Expected 'bullion_in', 'to_refiner', or 'from_refiner'.")
+    if fine_mg <= 0:
+        raise InvalidEntryError("Fine gold weight must be strictly positive")
+
+    if kind == "to_refiner":
+        stock = compute_daily_stock(session, as_of=entry_date)
+        if fine_mg > stock.vault_fine_mg:
+            raise InvalidEntryError("Transfer to refiner exceeds available vault fine gold balance")
+
+    vm = VaultMovement(
+        kind=kind,
+        fine_mg=fine_mg,
+        entry_date=entry_date,
+        created_by=user_id,
+        note=note,
+    )
+    session.add(vm)
+    session.flush()
+    return vm
+
+
+def get_vault_movements(
+    session: Session,
+    limit: int = 50,
+    offset: int = 0,
+) -> list[VaultMovement]:
+    """Retrieve list of vault movements ordered by entry_date descending."""
+    return list(
+        session.execute(
+            select(VaultMovement)
+            .order_by(VaultMovement.entry_date.desc(), VaultMovement.id.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+        .scalars()
+        .all()
+    )
+

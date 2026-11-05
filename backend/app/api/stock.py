@@ -11,7 +11,12 @@ from app.models.user import User
 from app.models.vault_movement import VaultMovement
 from app.schemas.ledger import KarigarBalanceSummaryRowRead
 from app.schemas.stock import DailyStockStatementRead, VaultMovementCreate, VaultMovementRead
-from app.services.stock_statement import compute_daily_stock
+from app.services.errors import InvalidEntryError
+from app.services.stock_statement import (
+    compute_daily_stock,
+    create_vault_movement,
+    get_vault_movements,
+)
 
 router = APIRouter(prefix="/stock", tags=["stock statement (finance only)"])
 
@@ -42,6 +47,7 @@ def get_daily_stock_statement(
     )
 
 
+@router.post("/movements", response_model=VaultMovementRead, status_code=status.HTTP_201_CREATED)
 @router.post("/vault-movements", response_model=VaultMovementRead, status_code=status.HTTP_201_CREATED)
 def record_vault_movement(
     data: VaultMovementCreate,
@@ -49,20 +55,34 @@ def record_vault_movement(
     current_user: Annotated[User, Depends(require_finance_head)],
 ) -> VaultMovementRead:
     """Record physical bullion deposit or transfer to/from external refiners."""
-    if data.kind not in ("bullion_in", "to_refiner", "from_refiner"):
+    try:
+        movement = create_vault_movement(
+            session=db,
+            kind=data.kind,
+            fine_mg=data.fine_mg,
+            entry_date=data.entry_date,
+            user_id=current_user.id,
+            note=data.note,
+        )
+        db.commit()
+        db.refresh(movement)
+        return VaultMovementRead.model_validate(movement)
+    except InvalidEntryError as e:
+        db.rollback()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid vault movement kind '{data.kind}'. Expected 'bullion_in', 'to_refiner', or 'from_refiner'.",
+            detail=str(e),
         )
 
-    movement = VaultMovement(
-        kind=data.kind,
-        fine_mg=data.fine_mg,
-        entry_date=data.entry_date,
-        created_by=current_user.id,
-        note=data.note,
-    )
-    db.add(movement)
-    db.commit()
-    db.refresh(movement)
-    return VaultMovementRead.model_validate(movement)
+
+@router.get("/movements", response_model=list[VaultMovementRead])
+@router.get("/vault-movements", response_model=list[VaultMovementRead])
+def list_vault_movements(
+    db: Annotated[Session, Depends(get_db)],
+    _: Annotated[User, Depends(require_finance_head)],
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+) -> list[VaultMovementRead]:
+    """Retrieve history of vault bullion movements (Finance Head only)."""
+    movements = get_vault_movements(db, limit=limit, offset=offset)
+    return [VaultMovementRead.model_validate(m) for m in movements]

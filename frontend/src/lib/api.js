@@ -107,6 +107,8 @@ export const api = {
 
   // 7. Stock & Tally Export (Finance only)
   getDailyStock: (as_of) => api.get(`/api/stock/daily${as_of ? `?as_of=${as_of}` : ""}`),
+  createVaultMovement: (data) => api.post("/api/stock/movements", data),
+  getVaultMovements: (limit = 50, offset = 0) => api.get(`/api/stock/movements?limit=${limit}&offset=${offset}`),
   exportTallyCsv: async (as_of) => {
     const url = `${BASE_URL}/api/exports/tally${as_of ? `?as_of=${as_of}` : ""}`;
     const response = await fetch(url, {
