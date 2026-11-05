@@ -73,3 +73,9 @@ class KarigarBalanceSummaryRowRead(BaseModel):
     total_fine_balance_mg: int
 
     model_config = ConfigDict(from_attributes=True)
+
+
+# Plural alias for convenience
+KarigarBalancesSummaryRowRead = KarigarBalanceSummaryRowRead
+
+

@@ -1,0 +1,12 @@
+{
+  "python.analysis.extraPaths": [
+    "./backend"
+  ],
+  "python.autoComplete.extraPaths": [
+    "./backend"
+  ],
+  "pyrefly.analysis.extraPaths": [
+    "./backend"
+  ],
+  "python.defaultInterpreterPath": "C:\\Users\\cheta\\AppData\\Local\\Programs\\Python\\Python313\\python.exe"
+}

@@ -3,7 +3,7 @@
 from datetime import date, datetime
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.schemas.ledger import KarigarBalanceSummaryRowRead
+from .ledger import KarigarBalanceSummaryRowRead, KarigarBalancesSummaryRowRead
 
 
 class VaultMovementCreate(BaseModel):
@@ -38,3 +38,4 @@ class DailyStockStatementRead(BaseModel):
     refiner_fine_mg: int
     total_fine_mg: int
     karigars_breakdown: list[KarigarBalanceSummaryRowRead]
+
