@@ -186,3 +186,4 @@ def test_settle_rejects_wrong_type_numbers(wrong_type):
 def test_settle_rejects_non_bool_job_open(wrong_bool):
     with pytest.raises(TypeError):
         settle(100, 0, 0, 0, 300, wrong_bool)
+

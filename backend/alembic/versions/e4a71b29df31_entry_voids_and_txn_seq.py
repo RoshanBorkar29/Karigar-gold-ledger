@@ -51,3 +51,4 @@ def downgrade() -> None:
 
     # 2. Drop table entry_voids
     op.drop_table('entry_voids')
+

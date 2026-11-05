@@ -19,3 +19,4 @@ class OverReturnError(LedgerError):
 
 class NotFoundError(LedgerError):
     """Raised when an entity (Job, Issue, Receipt, Karigar, etc.) is not found."""
+
