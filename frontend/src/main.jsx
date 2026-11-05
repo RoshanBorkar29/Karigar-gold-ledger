@@ -1,2 +1,10 @@
-// Application entrypoint mounting the React DOM root with TanStack Query provider.
-// Sets up global error boundaries and root styling.
+import React from "react";
+import ReactDOM from "react-dom/client";
+import App from "./App";
+import "./index.css";
+
+ReactDOM.createRoot(document.getElementById("root")).render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+);
