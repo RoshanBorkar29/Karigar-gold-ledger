@@ -32,33 +32,26 @@ def seed_data() -> None:
     db = SessionLocal()
     try:
         # -------------------------------------------------------------------
-        # 1. Users (1 issue_clerk, 1 finance_head)
+        # 1. Users (1 issue_clerk, 1 finance_head) + workshop aliases
         # -------------------------------------------------------------------
-        clerk = db.query(User).filter(User.email == "clerk@karigar.local").first()
-        if not clerk:
-            clerk = User(
-                email="clerk@karigar.local",
-                full_name="Issue Clerk",
-                password_hash=hash_password(settings.SEED_CLERK_PASSWORD),
-                role="issue_clerk",
-                is_active=True,
-            )
-            db.add(clerk)
-            db.flush()
-            print("Created user: clerk@karigar.local")
-
-        finance = db.query(User).filter(User.email == "finance@karigar.local").first()
-        if not finance:
-            finance = User(
-                email="finance@karigar.local",
-                full_name="Finance Head",
-                password_hash=hash_password(settings.SEED_FINANCE_PASSWORD),
-                role="finance_head",
-                is_active=True,
-            )
-            db.add(finance)
-            db.flush()
-            print("Created user: finance@karigar.local")
+        for email, role, full_name, pwd in [
+            ("clerk@karigar.local", "issue_clerk", "Issue Clerk", settings.SEED_CLERK_PASSWORD),
+            ("finance@karigar.local", "finance_head", "Finance Head", settings.SEED_FINANCE_PASSWORD),
+            ("clerk@workshop.local", "issue_clerk", "Issue Clerk", "clerk123"),
+            ("finance@workshop.local", "finance_head", "Finance Head", "finance123"),
+        ]:
+            u = db.query(User).filter(User.email == email).first()
+            if not u:
+                u = User(
+                    email=email,
+                    full_name=full_name,
+                    password_hash=hash_password(pwd),
+                    role=role,
+                    is_active=True,
+                )
+                db.add(u)
+                db.flush()
+                print(f"Created user: {email}")
 
         # -------------------------------------------------------------------
         # 2. 5 Item Categories
