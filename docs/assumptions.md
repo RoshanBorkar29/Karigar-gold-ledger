@@ -19,3 +19,7 @@
 - **ASSUMPTION**: For finished jewellery receipts, a Hallmarking Unique Identification (HUID) is mandatory and must consist of exactly 6 uppercase alphanumeric characters (`^[A-Z0-9]{6}$`), complying with Bureau of Indian Standards (BIS) hallmarking regulations. Scrap and filings receipts must have no HUID (`None`).
 - **ASSUMPTION**: Business transaction date (`entry_date`) is evaluated against the Indian calendar date (`Asia/Kolkata` time zone); transactions with future dates or dates preceding the job order's `opened_on` date are strictly rejected.
 - **ASSUMPTION**: All ledger corrections and mistake rectifications are recorded via an append-only audit `entry_voids` table with a mandatory explanatory reason (minimum 5 characters), rather than in-place mutations or edits.
+- **ASSUMPTION**: JWT authentication tokens encode user identity and role with 24-hour expiration for daily workshop shifts.
+- **ASSUMPTION**: High-value old-gold desk purchases equal to or exceeding ₹2,00,000 (20,000,000 paise) mandate a 10-character Permanent Account Number (PAN) and strictly forbid cash payments under Section 269ST.
+- **ASSUMPTION**: Tally CSV exports are formatted with date, stock category, account particulars, and fine weights (both grams and milligrams) for direct ERP ingestion.
+- **ASSUMPTION**: Anomaly detection for artisan loss drift considers recent job wastage against baseline averages and flags deviations exceeding baseline average plus 50 basis points (0.50%) or 1 integer standard deviation.

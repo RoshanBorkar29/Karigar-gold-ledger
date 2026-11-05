@@ -233,3 +233,64 @@ This document records the architectural, mathematical, and implementation decisi
   2. Adding a new migration script with explicit upgrade and downgrade operations.
 - **Why Chosen**: Production database evolution requires strictly immutable, forward-only migration chains. Altering historical migrations breaks deployed environments, corrupts Alembic version history across developer machines, and destroys schema provenance.
 - **Trade-off**: Requires maintaining multiple migration files in the repository.
+
+---
+
+### Decision 23: Domain Exception Translation at FastAPI Application Layer
+- **Decision**: Register global exception handlers in `app/main.py` mapping pure domain errors (`NotFoundError` -> 404, `JobClosedError`/`OverReturnError`/`LedgerError` -> 400, `InvalidEntryError` -> 422) rather than letting internal exceptions leak as 500 errors.
+- **Options Considered**:
+  1. Catching domain exceptions individually within every API route handler.
+  2. Registering centralized FastAPI exception handlers for domain exception classes.
+  3. Raising `HTTPException` directly within core service layers.
+- **Why Chosen**: Service layers remain pure and decoupled from web frameworks (can be called from CLI scripts, worker queues, or automated tests without HTTP dependencies). Centralized exception mapping guarantees consistent JSON `{ "detail": "..." }` responses and accurate HTTP status codes.
+- **Trade-off**: Requires explicit registration of all custom domain exception types on the FastAPI application instance.
+
+---
+
+### Decision 24: Server-Side Role-Based Access Control (RBAC)
+- **Decision**: Enforce role checks (`issue_clerk` vs `finance_head`) on server endpoints via FastAPI dependency injection (`require_finance_head`, `require_clerk_or_finance`).
+- **Options Considered**:
+  1. Enforcing role restrictions solely in the frontend UI via hidden navigation elements.
+  2. Server-side token claims verification using FastAPI `Depends(require_role)`.
+- **Why Chosen**: UI-only route guards can be trivially bypassed via direct cURL or API calls. Confidential workshop stock statements, Tally ERP CSV exports, and loss drift alerts are strictly owner-only controls and must be safeguarded by HTTP 403 Forbidden responses on the backend.
+- **Trade-off**: Requires JWT tokens to encode user role and endpoints to declare role dependencies.
+
+---
+
+### Decision 25: Integer Standard Deviation for Statistical Loss Drift
+- **Decision**: Calculate artisan baseline wastage standard deviation using integer square root (`math.isqrt`) and integer basis points without floating-point math.
+- **Options Considered**:
+  1. Using `numpy.std` or Python `statistics.stdev` with IEEE 754 floats.
+  2. Pure integer standard deviation via `math.isqrt((sum(sq_diff)) // N)`.
+- **Why Chosen**: Preserves the project's zero-float invariant across statistical drift calculations. Flags anomalous loss drift if recent loss exceeds baseline average by >50 basis points (0.50%) or 1 integer standard deviation.
+- **Trade-off**: Minor sub-basis point precision loss in standard deviation calculation, which is insignificant for workshop tolerance thresholds.
+
+---
+
+### Decision 26: Section 269ST and Section 139A Statutory Enforcement on Old-Gold Desk
+- **Decision**: Reject old-gold purchases $\ge$ ₹2,00,000 (20,000,000 paise) with missing PAN (HTTP 422) or cash payment mode (HTTP 400) on both backend and frontend.
+- **Options Considered**:
+  1. Non-blocking UI warning banner allowing the clerk to proceed.
+  2. Hard database and service rejection enforcing Indian Income Tax regulations.
+- **Why Chosen**: Under Section 269ST, accepting cash of ₹2 Lakh or more incurs a 100% statutory penalty on the jeweller. Enforcing validation at the API boundary ensures strict legal compliance before gold enters the vault.
+- **Trade-off**: Prevents offline or emergency cash processing above the statutory threshold without PAN verification.
+
+---
+
+### Decision 27: AI Scale Vision and Craft Loss Explanations with Offline Resilience
+- **Decision**: Integrate Groq Vision (`llama-3.2-11b-vision-preview` / `meta/llama-3.2-11b-vision-instruct`) and text (`llama-3.3-70b-versatile`) with robust local fallback for synthetic/test environments and offline resiliency.
+- **Options Considered**:
+  1. Direct hard dependency on Groq API without fallback (failing if API key missing or rate-limited).
+  2. Pluggable provider architecture with heuristic OCR fallback and structured audit template generator.
+- **Why Chosen**: Guarantees tests pass cleanly in air-gapped CI environments and ensures continuous workshop operations if internet connectivity is interrupted.
+- **Trade-off**: Template fallback produces standardized phrasing rather than dynamic contextual craftsmanship explanations.
+
+---
+
+### Decision 28: Tabular Monospace Precision in React UI
+- **Decision**: Render all gold figures with `font-variant-numeric: tabular-nums` and JetBrains Mono monospace fonts, pairing gross weight inputs with live mathematical half-up fine gold previews and printable physical voucher slips (`TX-XXXXX`).
+- **Options Considered**:
+  1. Standard proportional sans-serif font styling.
+  2. Tabular monospace layout with color-coded liability alerts and printable physical vouchers.
+- **Why Chosen**: Proportional fonts make decimal-aligned gold weight comparisons error-prone on busy workshop floors. Tabular alignment ensures milligrams and purities line up cleanly, preventing visual misreads.
+- **Trade-off**: Requires including a dedicated monospace font family in the frontend bundle.
