@@ -1,6 +1,7 @@
-"""API endpoints for old-gold intake desk, purity testing, and high-value compliance."""
+"""API endpoints for old-gold intake desk, purity testing, and client policy compliance."""
 
 from datetime import date
+import re
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -8,6 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, get_db, require_clerk_or_finance
+from app.core.config import settings
 from app.core.gold import fine_weight_mg, fmt_g, fmt_purity
 from app.models.ai_reading import AiReading
 from app.models.old_gold_purchase import OldGoldPurchase
@@ -16,7 +18,7 @@ from app.schemas.old_gold_purchase import OldGoldPurchaseCreate, OldGoldPurchase
 
 router = APIRouter(prefix="/old-gold", tags=["old gold desk"])
 
-PAN_THRESHOLD_PAISE = 20_000_000  # Rs 2,00,000 (200,000 * 100 paise)
+PAN_REGEX = re.compile(r"^[A-Z]{5}[0-9]{4}[A-Z]{1}$")
 
 
 @router.post("", response_model=OldGoldPurchaseRead, status_code=status.HTTP_201_CREATED)
@@ -25,7 +27,7 @@ def record_old_gold_purchase(
     db: Annotated[Session, Depends(get_db)],
     current_user: Annotated[User, Depends(require_clerk_or_finance)],
 ) -> OldGoldPurchaseRead:
-    """Record customer old-gold purchase with purity testing, deductions, and statutory compliance checks."""
+    """Record customer old-gold purchase with purity testing, deductions, and client policy compliance."""
     if data.ai_reading_id is not None:
         ai_reading = db.get(AiReading, data.ai_reading_id)
         if not ai_reading:
@@ -78,18 +80,35 @@ def record_old_gold_purchase(
     # Calculate valuation in paise using half-up integer math: (fine_mg * rate_paise_per_g + 500) // 1000
     value_paise = (fine_mg * data.rate_paise_per_g + 500) // 1000
 
-    # Statutory compliance: high-value purchases >= Rs 2 Lakh require PAN and cannot be paid in cash
-    pan_clean = data.pan.strip().upper() if data.pan else None
-    if value_paise >= PAN_THRESHOLD_PAISE:
+    # Client policy thresholds: high-value purchases require PAN and restrict cash mode (to be confirmed with client accountant)
+    pan_clean = data.pan.strip().upper() if data.pan and data.pan.strip() else None
+
+    # PAN format validation if provided
+    if pan_clean and not PAN_REGEX.match(pan_clean):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Invalid PAN format '{pan_clean}'. Must be 5 uppercase letters, 4 digits, 1 uppercase letter (e.g. ABCDE1234F).",
+        )
+
+    if value_paise >= settings.OLD_GOLD_PAN_REQUIRED_THRESHOLD_PAISE:
         if not pan_clean:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=f"PAN is legally required for gold purchases of Rs 2,00,000 or above (Current value: Rs {value_paise // 100})",
+                detail=(
+                    f"PAN is required for gold purchases of Rs {settings.OLD_GOLD_PAN_REQUIRED_THRESHOLD_PAISE // 100:,} "
+                    f"or above under client policy threshold, to be confirmed with their accountant "
+                    f"(Current value: Rs {value_paise // 100:,})"
+                ),
             )
+
+    if value_paise >= settings.OLD_GOLD_HIGH_VALUE_THRESHOLD_PAISE:
         if data.payment_mode == "cash":
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Cash payment is prohibited under Section 269ST for transactions >= Rs 2,00,000. Use UPI, bank transfer, or cheque.",
+                detail=(
+                    f"Cash payment is restricted for transactions of Rs {settings.OLD_GOLD_HIGH_VALUE_THRESHOLD_PAISE // 100:,} "
+                    f"or above under client policy threshold, to be confirmed with their accountant. Use UPI, bank transfer, or cheque."
+                ),
             )
 
     purchase = OldGoldPurchase(

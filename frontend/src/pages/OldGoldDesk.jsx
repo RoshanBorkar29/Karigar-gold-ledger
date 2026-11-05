@@ -90,8 +90,9 @@ export default function OldGoldDesk() {
     //
   }
 
-  // Section 269ST & Income Tax threshold: Rs 2,00,000 = 20,000,000 paise
+  // Client policy threshold: Rs 2,00,000 = 20,000,000 paise (to be confirmed with client accountant)
   const isHighValue = totalAmountPaise >= 20000000;
+  const PAN_REGEX = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -113,15 +114,15 @@ export default function OldGoldDesk() {
 
     if (isHighValue) {
       const cleanPan = panNumber.trim().toUpperCase();
-      if (!cleanPan || cleanPan.length !== 10) {
+      if (!cleanPan || !PAN_REGEX.test(cleanPan)) {
         setFormError(
-          "High-value purchase (≥ ₹2,00,000) mandates customer PAN verification."
+          "Valid 10-character PAN required (e.g. ABCDE1234F) under client policy threshold, to be confirmed with their accountant."
         );
         return;
       }
       if (paymentMode === "cash") {
         setFormError(
-          "Section 269ST strictly prohibits cash transactions of ₹2,00,000 or more. Select Bank Transfer or Cheque."
+          "Cash payment restricted for transactions of ₹2,00,000 or more under client policy threshold, to be confirmed with their accountant. Select Bank Transfer or Cheque."
         );
         return;
       }
@@ -165,8 +166,8 @@ export default function OldGoldDesk() {
 
   return (
     <AppShell
-      title="Old-Gold Desk & Statutory Compliance"
-      subtitle="Customer intake appraisal, purity testing, and Income Tax Act Section 269ST validation"
+      title="Old-Gold Desk & Policy Compliance"
+      subtitle="Customer intake appraisal, purity testing, and client policy threshold compliance"
     >
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Form Column */}
@@ -314,7 +315,7 @@ export default function OldGoldDesk() {
                     <option value="bank_transfer">Bank Transfer (NEFT/RTGS)</option>
                     <option value="cheque">Account Payee Cheque</option>
                     <option value="cash" disabled={isHighValue}>
-                      Cash {isHighValue ? "(Prohibited ≥ ₹2L)" : ""}
+                      Cash {isHighValue ? "(Restricted ≥ ₹2L)" : ""}
                     </option>
                   </select>
                 </div>
@@ -333,17 +334,17 @@ export default function OldGoldDesk() {
                 </div>
               </div>
 
-              {/* High-Value Statutory Banner & PAN Input */}
+              {/* High-Value Client Policy Banner & PAN Input */}
               {isHighValue && (
                 <div className="p-4 rounded-lg bg-amber-950/40 border border-amber-600/70 text-amber-200 space-y-3">
                   <div className="flex items-center gap-2">
                     <ShieldAlert className="w-5 h-5 text-amber-400 shrink-0" />
                     <div>
                       <h4 className="text-xs font-bold uppercase tracking-wider text-amber-300">
-                        Section 269ST High-Value Compliance Triggered
+                        Client Policy Threshold Triggered
                       </h4>
                       <p className="text-[11px] text-amber-200/90 mt-0.5">
-                        Purchase amount reaches or exceeds ₹2,00,000. Customer PAN is legally mandatory and Cash payments are strictly prohibited.
+                        Purchase amount reaches or exceeds ₹2,00,000. Customer PAN is required and cash payment is restricted under client policy threshold, to be confirmed with their accountant.
                       </p>
                     </div>
                   </div>
@@ -432,13 +433,13 @@ export default function OldGoldDesk() {
 
           <div className="card-glass p-5 border border-slate-800 space-y-3">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">
-              Statutory Gold Desk Compliance
+              Gold Desk Policy Controls
             </h3>
             <ul className="text-xs text-slate-400 space-y-2 list-disc list-inside">
               <li>Purity confirmed via XRF Karatmeter photo capture.</li>
               <li>Pure fine gold instantly credits workshop raw bullion position.</li>
-              <li>Transactions ≥ ₹2,00,000 mandate verified PAN under Section 139A.</li>
-              <li>Section 269ST imposes 100% penalty on cash receipts ≥ ₹2 Lakh.</li>
+              <li>Transactions ≥ ₹2,00,000 require verified PAN under client policy threshold, to be confirmed with their accountant.</li>
+              <li>Cash payment restricted for receipts ≥ ₹2 Lakh under client policy threshold, to be confirmed with their accountant.</li>
             </ul>
           </div>
         </div>

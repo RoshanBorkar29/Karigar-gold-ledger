@@ -13,7 +13,10 @@ class OldGoldPurchaseCreate(BaseModel):
     deduction_mg: int = Field(default=0, ge=0, description="Dirt/stone deduction in milligrams")
     rate_paise_per_g: int = Field(..., gt=0, description="Purchase rate in paise per gram (e.g. 1250000 = Rs 12,500/g)")
     payment_mode: str = Field(..., description="Payment mode: cash, upi, bank_transfer, cheque")
-    pan: str | None = Field(default=None, description="Permanent Account Number (mandatory for >= Rs 2,00,000)")
+    pan: str | None = Field(
+        default=None,
+        description="Permanent Account Number (mandatory above client policy threshold, to be confirmed with their accountant)",
+    )
     ai_reading_id: int | None = Field(default=None, description="Optional audit reference to an AI scale or karat meter reading")
     entry_date: date
 

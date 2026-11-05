@@ -19,7 +19,7 @@ from app.db.base import Base
 
 
 class OldGoldPurchase(Base):
-    """Customer old-gold intake with purity testing, deductions, and payment details."""
+    """Customer old-gold intake with purity testing, deductions, and payment details under client policy thresholds."""
 
     __tablename__ = "old_gold_purchases"
     __table_args__ = (

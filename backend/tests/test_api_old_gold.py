@@ -125,7 +125,7 @@ def test_old_gold_high_value_mandates_pan(client: TestClient, auth_headers):
 
 
 def test_old_gold_high_value_prohibits_cash(client: TestClient, auth_headers):
-    """Purchases >= Rs 2 Lakh reject cash payment under Section 269ST."""
+    """Purchases >= Rs 2 Lakh reject cash payment under client policy threshold."""
     resp = client.post(
         "/api/old-gold",
         json={
@@ -163,3 +163,25 @@ def test_old_gold_high_value_valid_with_pan_and_bank(client: TestClient, auth_he
     assert resp.status_code == 201
     assert resp.json()["pan"] == "ABCDE1234F"
     assert resp.json()["value_paise"] == 27480000
+
+
+def test_old_gold_invalid_pan_format_rejected(client: TestClient, auth_headers):
+    """PAN format must strictly match 5 uppercase letters, 4 digits, 1 uppercase letter."""
+    resp = client.post(
+        "/api/old-gold",
+        json={
+            "bill_no": "OG-PAN-INVALID",
+            "gross_mg": 30000,
+            "tested_purity_bp": 9160,
+            "deduction_mg": 0,
+            "rate_paise_per_g": 1000000,
+            "payment_mode": "bank_transfer",
+            "pan": "INVALID123",
+            "entry_date": "2026-11-01",
+        },
+        headers=auth_headers,
+    )
+    assert resp.status_code == 422
+    assert "Invalid PAN format" in resp.json()["detail"]
+
+
