@@ -15,6 +15,8 @@ import Button from "./ui/Button";
 export default function PhotoReader({
   mode = "scale", // "scale" | "karat"
   currentTypedValue = "",
+  isOpen = false,
+  onClose = null,
   onReadingConfirmed,
   onMismatchStateChange = () => {},
 }) {
@@ -81,6 +83,7 @@ export default function PhotoReader({
         });
       }
       onMismatchStateChange(false);
+      if (onClose) onClose();
     } catch (err) {
       setError(err.message || "Failed to confirm reading");
     } finally {
@@ -109,6 +112,7 @@ export default function PhotoReader({
       }
       onMismatchStateChange(false);
       setManualMode(false);
+      if (onClose) onClose();
     } catch (err) {
       setError(err.message || "Failed to apply manual value");
     } finally {
@@ -135,25 +139,39 @@ export default function PhotoReader({
       : "Low"
     : "Medium";
 
+  // If collapsed and no mismatch, return null
+  if (!isOpen && !isMismatch) {
+    return null;
+  }
+
   return (
-    <div className="bg-surface border border-border rounded p-4 space-y-4">
-      {/* Component Title */}
-      <div className="flex items-center justify-between pb-3 border-b border-border">
+    <div className="bg-surface border border-border rounded p-4 space-y-3">
+      {/* Component Title & Close Button */}
+      <div className="flex items-center justify-between pb-2 border-b border-border">
         <div className="flex items-center gap-2">
           <Camera className="w-4 h-4 text-bronze stroke-[1.75]" />
-          <h4 className="text-sm font-semibold text-ink m-0">
-            {isScale ? "Precision scale photo reader" : "Karatmeter photo reader"}
+          <h4 className="text-xs font-semibold text-ink m-0">
+            {isScale ? "Scale photo reader" : "Karatmeter photo reader"}
           </h4>
         </div>
-        <span className="text-xs text-muted">
-          Vision OCR
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] text-muted">Vision OCR</span>
+          {onClose && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="text-xs text-muted hover:text-ink ml-2 bg-transparent border-none cursor-pointer p-0"
+            >
+              Close
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Upload button & file input */}
       <div>
-        <label className="flex items-center justify-center gap-2 h-11 px-4 border border-border hover:border-bronze rounded bg-background text-sm text-ink font-medium cursor-pointer transition">
-          <Upload className="w-4 h-4 text-muted stroke-[1.75]" />
+        <label className="flex items-center justify-center gap-2 h-10 px-3 border border-[#D9D1BF] hover:border-bronze rounded bg-white text-xs text-ink font-medium cursor-pointer transition">
+          <Upload className="w-3.5 h-3.5 text-muted stroke-[1.75]" />
           <span>{imagePreview ? "Replace photo" : isScale ? "Upload scale photo" : "Upload karatmeter printout"}</span>
           <input
             type="file"
@@ -170,20 +188,20 @@ export default function PhotoReader({
       </div>
 
       {loading && (
-        <div className="py-4 text-center text-xs text-muted">
+        <div className="py-3 text-center text-xs text-muted">
           Analyzing instrument display...
         </div>
       )}
 
       {error && (
-        <div className="p-3 bg-status-problem-tint border border-status-problem/20 rounded text-xs text-status-problem">
+        <div className="p-2.5 bg-status-problem-tint border border-status-problem/20 rounded text-xs text-status-problem">
           {error}
         </div>
       )}
 
       {/* Photo on left, AI reading on right */}
       {imagePreview && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 items-center">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 items-center">
           {/* Photo on left */}
           <div className="relative aspect-[4/3] rounded border border-border bg-background overflow-hidden flex items-center justify-center">
             <img
@@ -194,14 +212,14 @@ export default function PhotoReader({
           </div>
 
           {/* AI reading on right */}
-          <div className="space-y-3">
+          <div className="space-y-2">
             {isFallback ? (
-              <div className="p-3 bg-status-review-tint border border-status-review/20 rounded text-xs text-status-review">
+              <div className="p-2.5 bg-status-review-tint border border-status-review/20 rounded text-xs text-status-review">
                 <p className="font-medium m-0">Photo reading is not available</p>
-                <p className="mt-1 m-0 text-muted">Enter the weight manually.</p>
+                <p className="mt-0.5 m-0 text-muted">Enter the value manually.</p>
               </div>
             ) : reading && reading.readable ? (
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 <div className="text-xs text-muted">Instrument reading</div>
                 <GoldNumber
                   value={isScale ? reading.value_mg : reading.purity_bp}
@@ -214,7 +232,7 @@ export default function PhotoReader({
                 </div>
 
                 {/* Two clear buttons */}
-                <div className="pt-2 flex flex-wrap gap-2">
+                <div className="pt-1.5 flex flex-wrap gap-2">
                   <Button
                     variant="primary"
                     size="sm"
@@ -238,7 +256,7 @@ export default function PhotoReader({
 
       {/* Manual Entry override input */}
       {manualMode && (
-        <div className="pt-3 border-t border-border space-y-2">
+        <div className="pt-2 border-t border-border space-y-1.5">
           <div className="text-xs font-medium text-ink">
             Manual instrument entry
           </div>
@@ -248,11 +266,11 @@ export default function PhotoReader({
               value={manualValue}
               onChange={(e) => setManualValue(e.target.value)}
               placeholder={isScale ? "e.g. 112.450" : "e.g. 91.60"}
-              className="h-11 px-3 bg-surface border border-border rounded text-sm font-mono text-ink outline-none focus:border-bronze focus:ring-2 focus:ring-bronze/20 flex-1"
+              className="h-10 px-3 bg-white border border-[#D9D1BF] rounded text-xs font-mono text-ink outline-none focus:border-bronze focus:ring-2 focus:ring-bronze flex-1"
             />
             <Button
               variant="secondary"
-              size="md"
+              size="sm"
               onClick={handleConfirmManual}
               disabled={!manualValue.trim()}
             >

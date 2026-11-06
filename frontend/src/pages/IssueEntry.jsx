@@ -1,14 +1,22 @@
 import React, { useState, useEffect } from "react";
-import { Printer, CheckCircle2 } from "lucide-react";
+import { Printer, CheckCircle2, ChevronDown, Camera } from "lucide-react";
 import AppShell from "../components/layout/AppShell";
-import PageHeader from "../components/ui/PageHeader";
 import Field from "../components/ui/Field";
 import Button from "../components/ui/Button";
+import DateInput from "../components/ui/DateInput";
 import GoldNumber from "../components/GoldNumber";
 import PhotoReader from "../components/PhotoReader";
 import LoadingState from "../components/LoadingState";
 import ErrorState from "../components/ErrorState";
 import EmptyState from "../components/EmptyState";
+import {
+  TableContainer,
+  TableHead,
+  TableBody,
+  TableRow,
+  TableCell,
+  TableHeaderCell,
+} from "../components/ui/Table";
 import { api } from "../lib/api";
 import {
   fmtG,
@@ -22,6 +30,7 @@ import {
 export default function IssueEntry() {
   const [karigars, setKarigars] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [recentIssues, setRecentIssues] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -45,14 +54,21 @@ export default function IssueEntry() {
   const [note, setNote] = useState("");
   const [confirmedReadingId, setConfirmedReadingId] = useState(null);
   const [isMismatchBlocked, setIsMismatchBlocked] = useState(false);
+  const [showPhotoReader, setShowPhotoReader] = useState(false);
 
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState(null);
-
-  // Quiet persistent success confirmation
   const [savedSuccess, setSavedSuccess] = useState(null);
 
-  // Load karigars and categories
+  const fetchRecent = async () => {
+    try {
+      const data = await api.getIssues();
+      setRecentIssues(Array.isArray(data) ? data.slice(0, 8) : []);
+    } catch {
+      setRecentIssues([]);
+    }
+  };
+
   const fetchMasters = async () => {
     try {
       setLoading(true);
@@ -66,6 +82,7 @@ export default function IssueEntry() {
       if (kList.length > 0) {
         setKarigarId(String(kList[0].id));
       }
+      await fetchRecent();
     } catch (err) {
       setError(err.message || "Failed to load master records");
     } finally {
@@ -77,7 +94,6 @@ export default function IssueEntry() {
     fetchMasters();
   }, []);
 
-  // When karigar changes, fetch their open jobs and current running balance
   useEffect(() => {
     if (!karigarId) return;
 
@@ -124,6 +140,7 @@ export default function IssueEntry() {
   const handlePhotoConfirmed = ({ readingId, valueStr }) => {
     setGrossInput(valueStr);
     setConfirmedReadingId(readingId);
+    setShowPhotoReader(false);
   };
 
   const handleSubmit = async (e) => {
@@ -158,34 +175,35 @@ export default function IssueEntry() {
 
         const createdJob = await api.createJob({
           karigar_id: Number(karigarId),
-          job_no: newJobNo.trim(),
           category_id: Number(newJobCategory),
-          description: newJobDesc.trim() || undefined,
+          job_no: newJobNo.trim(),
           wastage_bp: agreedBp,
-          opened_on: entryDate,
+          description: newJobDesc.trim() || undefined,
         });
         targetJobId = createdJob.id;
+
+        const updatedJobs = await api.getKarigarJobs(karigarId, true);
+        setJobs(updatedJobs);
+        setSelectedJobId(String(targetJobId));
       }
 
-      if (!targetJobId) {
-        throw new Error("An open job must be selected or created to issue gold.");
-      }
+      const activeJobNo = newJobMode
+        ? newJobNo.trim()
+        : jobs.find((j) => j.id === Number(targetJobId))?.job_no;
 
-      const issuePayload = {
+      const payload = {
+        karigar_id: Number(karigarId),
         job_id: Number(targetJobId),
         gross_mg: gMg,
         purity_bp: pBp,
+        fine_mg: previewFineMg,
         entry_date: entryDate,
         note: note.trim() || undefined,
         ai_reading_id: confirmedReadingId || undefined,
       };
 
-      const result = await api.createIssue(issuePayload);
-
+      const result = await api.createIssue(payload);
       const selectedKarigar = karigars.find((k) => k.id === Number(karigarId));
-      const activeJobNo = newJobMode
-        ? newJobNo.trim()
-        : jobs.find((j) => j.id === Number(targetJobId))?.job_no || `JOB-${targetJobId}`;
 
       setSavedSuccess({
         txn_id: result.txn_id,
@@ -197,10 +215,7 @@ export default function IssueEntry() {
         purity_bp: result.purity_bp,
       });
 
-      // Update balance
       setCurrentBalanceMg((prev) => prev + result.fine_mg);
-
-      // Reset form fields
       setGrossInput("");
       setNote("");
       setConfirmedReadingId(null);
@@ -209,6 +224,8 @@ export default function IssueEntry() {
         setNewJobNo("");
         setNewJobDesc("");
       }
+
+      fetchRecent();
     } catch (err) {
       setFormError(err.message || "Failed to record issue");
     } finally {
@@ -218,27 +235,88 @@ export default function IssueEntry() {
 
   const activeJob = jobs.find((j) => j.id === Number(selectedJobId));
   const activeJobNumber = newJobMode
-    ? newJobNo.trim() || "New Job Order"
+    ? newJobNo.trim() || "New job order"
     : activeJob
     ? activeJob.job_no
     : "—";
 
-  return (
-    <AppShell>
-      <PageHeader
-        title="Issue gold"
-        description="Issue raw bullion or alloyed bar stock to an artisan workbench"
-      />
+  const hasJobSelected = Boolean(selectedJobId || newJobMode);
+  const hasTypedValues = previewFineMg > 0;
 
+  const disabledReason = isMismatchBlocked
+    ? "Save blocked: entered weight must match confirmed photo reading."
+    : previewFineMg <= 0
+    ? "Enter weight and purity to calculate fine gold."
+    : !selectedJobId && !newJobMode
+    ? "Select or create an open job order."
+    : "";
+
+  // Result Panel Content
+  const renderSlipBody = () => (
+    <div className="space-y-4">
+      {!hasTypedValues ? (
+        <div className="py-8 text-center text-xs text-muted">
+          Enter weight and purity to see the result
+        </div>
+      ) : (
+        <>
+          {/* Fine Weight - 32px mono hero metric */}
+          <div className="py-3 text-center border-b border-[#E2D3A4]">
+            <span className="text-xs text-muted block mb-1">
+              Fine pure weight
+            </span>
+            <div className="text-[32px] font-semibold font-mono tracking-tight text-ink leading-tight">
+              {fmtG(previewFineMg)} <span className="text-sm font-sans text-muted font-normal">g</span>
+            </div>
+            <span className="text-xs text-muted font-mono block mt-1">
+              {previewFineMg.toLocaleString()} mg pure
+            </span>
+          </div>
+
+          {/* Details: Gross & Purity */}
+          <div className="grid grid-cols-2 gap-3 text-xs py-2 border-b border-[#E2D3A4]">
+            <div>
+              <span className="text-muted block mb-0.5">Gross weight:</span>
+              <span className="font-mono text-sm text-ink">{fmtG(previewGrossMg)} <span className="text-muted text-xs">g</span></span>
+            </div>
+            <div>
+              <span className="text-muted block mb-0.5">Purity:</span>
+              <span className="font-mono text-sm text-ink">{fmtPurity(previewPurityBp)} <span className="text-muted text-xs">%</span></span>
+            </div>
+          </div>
+
+          {/* Running Balances */}
+          {hasJobSelected && (
+            <div className="space-y-1.5 pt-1 text-xs">
+              <div className="flex justify-between items-center">
+                <span className="text-muted">Balance before:</span>
+                <span className="font-mono text-ink">{fmtG(currentBalanceMg)} <span className="text-muted text-xs">g</span></span>
+              </div>
+              <div className="flex justify-between items-center font-medium pt-1 border-t border-[#E2D3A4]/60">
+                <span className="text-ink">Balance after:</span>
+                <span className="font-mono font-semibold text-ink">{fmtG(currentBalanceMg + previewFineMg)} <span className="text-muted text-xs">g</span></span>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+
+  return (
+    <AppShell
+      title="Issue gold"
+      subtitle="Issue raw bullion or bar stock to a karigar workbench"
+    >
       {loading ? (
-        <LoadingState count={5} />
+        <LoadingState count={4} />
       ) : error ? (
         <ErrorState error={error} onRetry={fetchMasters} />
       ) : (
         <div className="space-y-6">
-          {/* Quiet persistent success confirmation */}
+          {/* Success confirmation */}
           {savedSuccess && (
-            <div className="p-4 rounded border border-status-ok/20 bg-status-ok-tint flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="p-3.5 px-4 rounded border border-status-ok/20 bg-status-ok-tint flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="flex items-center gap-2 text-sm text-status-ok font-medium">
                 <CheckCircle2 className="w-4 h-4 shrink-0 stroke-[2]" />
                 <span>
@@ -256,30 +334,32 @@ export default function IssueEntry() {
             </div>
           )}
 
-          {/* Two-column layout on desktop: Left Form (max 480px), Right Slip Preview */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-            {/* Left: Form */}
-            <div className="lg:col-span-7 space-y-6 max-w-[480px]">
+          {/* 2-Zone Grid: Left zone 1fr (form), Right zone 400px (sticky result panel), gap 24px */}
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_400px] gap-6 items-start">
+            {/* Left Zone: Form */}
+            <div className="bg-surface border border-border rounded p-6">
               {formError && (
                 <ErrorState
                   error={formError}
                   title="Issue submission blocked"
                   message={formError}
+                  className="mb-4"
                 />
               )}
 
-              <form onSubmit={handleSubmit} className="space-y-5">
-                {/* Karigar & Date */}
-                <div className="space-y-4">
-                  <div className="space-y-1.5">
+              <form onSubmit={handleSubmit} className="space-y-4">
+                {/* 12-column Inner Grid */}
+                <div className="grid grid-cols-12 gap-x-4 gap-y-4">
+                  {/* Row 1: [Karigar | Issue date] */}
+                  <div className="col-span-12 sm:col-span-6 space-y-1.5">
                     <label htmlFor="karigar" className="block text-sm font-medium text-ink">
-                      Karigar <span className="text-status-problem">*</span>
+                      Karigar <span className="text-muted text-xs select-none">*</span>
                     </label>
                     <select
                       id="karigar"
                       value={karigarId}
                       onChange={(e) => setKarigarId(e.target.value)}
-                      className="w-full h-11 px-3 bg-surface border border-border rounded text-sm text-ink outline-none focus:border-bronze focus:ring-2 focus:ring-bronze/20"
+                      className="w-full h-11 sm:h-10 px-3 bg-white border border-[#D9D1BF] rounded text-sm text-ink outline-none focus:border-bronze focus:ring-2 focus:ring-bronze"
                     >
                       {karigars.map((k) => (
                         <option key={k.id} value={k.id}>
@@ -289,46 +369,39 @@ export default function IssueEntry() {
                     </select>
                   </div>
 
-                  <div className="space-y-1.5">
-                    <label htmlFor="entryDate" className="block text-sm font-medium text-ink">
-                      Issue date
-                    </label>
-                    <input
+                  <div className="col-span-12 sm:col-span-6">
+                    <DateInput
+                      label="Issue date"
                       id="entryDate"
-                      type="date"
                       value={entryDate}
-                      onChange={(e) => setEntryDate(e.target.value)}
-                      className="w-full h-11 px-3 bg-surface border border-border rounded text-sm text-ink outline-none focus:border-bronze focus:ring-2 focus:ring-bronze/20"
+                      onChange={(val) => setEntryDate(val)}
                     />
-                    <p className="text-xs text-muted mt-1">
-                      Scheduled date: {fmtDate(entryDate)} (Asia/Kolkata)
-                    </p>
-                  </div>
-                </div>
-
-                {/* Job Selection / Inline creation */}
-                <div className="pt-2 border-t border-border space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-ink">
-                      Job order
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setNewJobMode(!newJobMode)}
-                      className="text-xs text-bronze hover:underline p-0 m-0 bg-transparent border-none cursor-pointer font-medium"
-                    >
-                      {newJobMode ? "Select existing job" : "+ Create new job"}
-                    </button>
                   </div>
 
-                  {!newJobMode ? (
-                    jobs.length > 0 ? (
-                      <div className="space-y-1.5">
+                  {/* Row 2: [Job order] */}
+                  <div className="col-span-12 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label htmlFor="jobSelect" className="block text-sm font-medium text-ink">
+                        Job order <span className="text-muted text-xs select-none">*</span>
+                      </label>
+                      {jobs.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setNewJobMode(!newJobMode)}
+                          className="text-xs text-bronze hover:underline p-0 m-0 bg-transparent border-none cursor-pointer font-medium"
+                        >
+                          {newJobMode ? "Select existing job" : "+ Create new job"}
+                        </button>
+                      )}
+                    </div>
+
+                    {!newJobMode ? (
+                      jobs.length > 0 ? (
                         <select
                           id="jobSelect"
                           value={selectedJobId}
                           onChange={(e) => setSelectedJobId(e.target.value)}
-                          className="w-full h-11 px-3 bg-surface border border-border rounded text-sm text-ink outline-none focus:border-bronze focus:ring-2 focus:ring-bronze/20"
+                          className="w-full h-11 sm:h-10 px-3 bg-white border border-[#D9D1BF] rounded text-sm text-ink outline-none focus:border-bronze focus:ring-2 focus:ring-bronze"
                         >
                           {jobs.map((j) => (
                             <option key={j.id} value={j.id}>
@@ -336,132 +409,159 @@ export default function IssueEntry() {
                             </option>
                           ))}
                         </select>
-                        <p className="text-xs text-muted">
-                          Showing open production runs for this artisan
-                        </p>
-                      </div>
+                      ) : (
+                        <div className="p-2.5 px-3 rounded bg-background border border-border flex items-center justify-between text-xs text-muted">
+                          <span>No open jobs for this karigar.</span>
+                          <button
+                            type="button"
+                            onClick={() => setNewJobMode(true)}
+                            className="text-bronze font-medium hover:underline p-0 m-0 bg-transparent border-none cursor-pointer"
+                          >
+                            Create job order
+                          </button>
+                        </div>
+                      )
                     ) : (
-                      <EmptyState
-                        title="No active open jobs"
-                        description="This karigar has no open job orders. Create a job order to issue gold."
-                        actionText="Create job order"
-                        onAction={() => setNewJobMode(true)}
-                      />
-                    )
-                  ) : (
-                    <div className="p-4 border border-border rounded bg-surface space-y-3">
-                      <div className="text-xs font-semibold text-ink">
-                        New job order details
+                      /* Inline job order creation */
+                      <div className="p-3.5 border border-border rounded bg-background space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-semibold text-ink">
+                            New job order details
+                          </span>
+                          {jobs.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => setNewJobMode(false)}
+                              className="text-xs text-muted hover:text-ink cursor-pointer bg-transparent border-none p-0"
+                            >
+                              Cancel
+                            </button>
+                          )}
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <Field
+                            label="Job number"
+                            id="newJobNo"
+                            placeholder="e.g. JOB-2026-002"
+                            required
+                            value={newJobNo}
+                            onChange={(e) => setNewJobNo(e.target.value)}
+                          />
+                          <div className="space-y-1.5">
+                            <label htmlFor="newJobCategory" className="block text-sm font-medium text-ink">
+                              Category <span className="text-muted text-xs select-none">*</span>
+                            </label>
+                            <select
+                              id="newJobCategory"
+                              value={newJobCategory}
+                              onChange={(e) => setNewJobCategory(e.target.value)}
+                              className="w-full h-11 sm:h-10 px-3 bg-white border border-[#D9D1BF] rounded text-sm text-ink outline-none focus:border-bronze focus:ring-2 focus:ring-bronze"
+                            >
+                              <option value="">Select category</option>
+                              {categories.map((c) => (
+                                <option key={c.id} value={c.id}>
+                                  {c.name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                        <Field
+                          label="Description"
+                          id="newJobDesc"
+                          placeholder="e.g. Traditional Bridal Haar"
+                          value={newJobDesc}
+                          onChange={(e) => setNewJobDesc(e.target.value)}
+                        />
                       </div>
-                      <Field
-                        label="Job number"
-                        id="newJobNo"
-                        placeholder="e.g. JOB-2026-002"
-                        required
-                        value={newJobNo}
-                        onChange={(e) => setNewJobNo(e.target.value)}
-                      />
-                      <div className="space-y-1.5">
-                        <label htmlFor="newJobCategory" className="block text-sm font-medium text-ink">
-                          Category <span className="text-status-problem">*</span>
-                        </label>
-                        <select
-                          id="newJobCategory"
-                          value={newJobCategory}
-                          onChange={(e) => setNewJobCategory(e.target.value)}
-                          className="w-full h-11 px-3 bg-surface border border-border rounded text-sm text-ink outline-none focus:border-bronze focus:ring-2 focus:ring-bronze/20"
+                    )}
+                  </div>
+
+                  {/* Row 3: [Gross weight | Purity] */}
+                  <div className="col-span-12 sm:col-span-6">
+                    <Field
+                      label="Gross weight"
+                      id="grossWeight"
+                      required
+                      placeholder="0.000"
+                      value={grossInput}
+                      onChange={(e) => setGrossInput(e.target.value)}
+                      unit="g"
+                      action={
+                        <button
+                          type="button"
+                          onClick={() => setShowPhotoReader(!showPhotoReader)}
+                          className="text-xs text-bronze hover:underline font-medium p-0 bg-transparent border-none cursor-pointer flex items-center gap-1"
                         >
-                          <option value="">Select category</option>
-                          {categories.map((c) => (
-                            <option key={c.id} value={c.id}>
-                              {c.name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <Field
-                        label="Description"
-                        id="newJobDesc"
-                        placeholder="e.g. 22K Traditional Bridal Necklace"
-                        value={newJobDesc}
-                        onChange={(e) => setNewJobDesc(e.target.value)}
+                          <Camera className="w-3.5 h-3.5 stroke-[1.75]" />
+                          <span>{showPhotoReader ? "Hide photo" : "Read from photo"}</span>
+                        </button>
+                      }
+                    />
+                  </div>
+
+                  <div className="col-span-12 sm:col-span-6">
+                    <Field
+                      label="Purity (% gold)"
+                      id="purity"
+                      required
+                      placeholder="91.60"
+                      value={purityInput}
+                      onChange={(e) => setPurityInput(e.target.value)}
+                      unit="%"
+                    />
+                  </div>
+
+                  {/* Row 4: Photo Reader (expanded inline) */}
+                  {(showPhotoReader || isMismatchBlocked) && (
+                    <div className="col-span-12">
+                      <PhotoReader
+                        mode="scale"
+                        isOpen={true}
+                        onClose={() => setShowPhotoReader(false)}
+                        currentTypedValue={grossInput}
+                        onReadingConfirmed={handlePhotoConfirmed}
+                        onMismatchStateChange={setIsMismatchBlocked}
                       />
                     </div>
                   )}
+
+                  {/* Remarks */}
+                  <div className="col-span-12">
+                    <Field
+                      label="Remarks (optional)"
+                      id="note"
+                      placeholder="e.g. Casting grain from vault lot #3"
+                      value={note}
+                      onChange={(e) => setNote(e.target.value)}
+                    />
+                  </div>
                 </div>
 
-                {/* Weight & Purity */}
-                <div className="pt-2 border-t border-border space-y-4">
-                  <Field
-                    label="Gross weight"
-                    id="grossWeight"
-                    type="text"
-                    required
-                    placeholder="112.450"
-                    value={grossInput}
-                    onChange={(e) => setGrossInput(e.target.value)}
-                    helperText="Input in grams up to 3 decimals (e.g. 112.450)"
-                  />
-
-                  <Field
-                    label="Purity"
-                    id="purity"
-                    type="text"
-                    required
-                    placeholder="91.60"
-                    value={purityInput}
-                    onChange={(e) => setPurityInput(e.target.value)}
-                    helperText="Standard purity: 91.60% (22K) or 99.90% (24K)"
-                  />
-
-                  <Field
-                    label="Remarks (optional)"
-                    id="note"
-                    placeholder="e.g. Casting grain from vault bar #4"
-                    value={note}
-                    onChange={(e) => setNote(e.target.value)}
-                  />
-                </div>
-
-                {/* Photo Reader assist */}
-                <div className="pt-2 border-t border-border">
-                  <PhotoReader
-                    mode="scale"
-                    currentTypedValue={grossInput}
-                    onReadingConfirmed={handlePhotoConfirmed}
-                    onMismatchStateChange={setIsMismatchBlocked}
-                  />
-                </div>
-
-                {/* Submit button */}
-                <div className="pt-4">
+                {/* Actions Row: one divider above, primary button left-aligned, disabled reason beside it in one line */}
+                <div className="pt-4 border-t border-border flex flex-wrap items-center gap-3">
                   <Button
                     type="submit"
                     variant="primary"
-                    size="lg"
+                    size="md"
                     loading={submitting}
                     disabled={previewFineMg <= 0 || (!selectedJobId && !newJobMode) || isMismatchBlocked}
-                    disabledReason={
-                      isMismatchBlocked
-                        ? "Save blocked: entered weight must match confirmed photo reading."
-                        : previewFineMg <= 0
-                        ? "Enter valid gross weight and purity to calculate fine gold."
-                        : !selectedJobId && !newJobMode
-                        ? "Please select or create an open job order."
-                        : ""
-                    }
-                    className="w-full"
                   >
                     Authorize and issue gold
                   </Button>
+                  {disabledReason && (
+                    <span className="text-xs text-muted">
+                      {disabledReason}
+                    </span>
+                  )}
                 </div>
               </form>
             </div>
 
-            {/* Right: Live Slip Preview Panel */}
-            <div className="lg:col-span-5 space-y-4 sticky top-6">
-              <div className="bg-surface border border-border rounded p-6 space-y-5">
-                <div className="pb-3 border-b border-border flex items-center justify-between">
+            {/* Right Zone: Sticky Result Panel (400px) */}
+            <div className="hidden lg:block sticky top-6">
+              <div className="bg-result-bg border border-result-border rounded p-5 space-y-4">
+                <div className="pb-3 border-b border-result-border flex items-center justify-between">
                   <h3 className="text-sm font-semibold text-ink m-0">
                     Slip preview
                   </h3>
@@ -469,65 +569,74 @@ export default function IssueEntry() {
                     {activeJobNumber}
                   </span>
                 </div>
-
-                {/* Fine Weight - Largest figure */}
-                <div className="py-2 text-center border-b border-border space-y-1">
-                  <span className="text-xs text-muted block">
-                    Calculated fine weight
-                  </span>
-                  <div className="flex justify-center">
-                    <GoldNumber
-                      value={previewFineMg}
-                      type="weight"
-                      size="xl"
-                      isKeyBalance
-                    />
-                  </div>
-                  <span className="text-xs text-muted font-mono block">
-                    {previewFineMg.toLocaleString()} mg pure gold
-                  </span>
-                </div>
-
-                {/* Weight and Purity details */}
-                <div className="grid grid-cols-2 gap-4 text-xs py-1 border-b border-border">
-                  <div>
-                    <span className="text-muted block">Gross weight:</span>
-                    <GoldNumber value={previewGrossMg} type="weight" size="sm" />
-                  </div>
-                  <div>
-                    <span className="text-muted block">Purity:</span>
-                    <GoldNumber value={previewPurityBp} type="purity" size="sm" />
-                  </div>
-                </div>
-
-                {/* Karigar Running Balance Before and After */}
-                <div className="space-y-2 pt-1 text-xs">
-                  <div className="flex justify-between items-center py-1">
-                    <span className="text-muted">Karigar balance before:</span>
-                    <GoldNumber
-                      value={currentBalanceMg}
-                      type="weight"
-                      size="sm"
-                      align="right"
-                    />
-                  </div>
-                  <div className="flex justify-between items-center py-1 border-t border-border/60">
-                    <span className="text-ink font-medium">Balance after this issue:</span>
-                    <GoldNumber
-                      value={currentBalanceMg + previewFineMg}
-                      type="weight"
-                      size="sm"
-                      align="right"
-                      className="font-semibold"
-                    />
-                  </div>
-                </div>
-
-                <div className="pt-2 text-[11px] text-muted border-t border-border leading-relaxed">
-                  Formula: (gross_mg × purity_bp + 5000) // 10000. All entries are immutable in the ledger.
-                </div>
+                {renderSlipBody()}
               </div>
             </div>
+          </div>
+
+          {/* Collapsible Mobile Slip Preview (<1024px) */}
+          <div className="lg:hidden">
+            <details className="bg-result-bg border border-result-border rounded p-4 group" open={hasTypedValues}>
+              <summary className="text-sm font-semibold text-ink cursor-pointer list-none flex items-center justify-between select-none">
+                <div className="flex items-center gap-2">
+                  <span>Slip preview</span>
+                  {hasTypedValues && (
+                    <span className="text-xs font-mono text-bronze font-medium">
+                      {fmtG(previewFineMg)} g
+                    </span>
+                  )}
+                </div>
+                <ChevronDown className="w-4 h-4 text-muted transition-transform group-open:rotate-180" />
+              </summary>
+              <div className="pt-4 mt-3 border-t border-result-border">
+                {renderSlipBody()}
+              </div>
+            </details>
+          </div>
+
+          {/* Recent Entries Compact Table */}
+          <div className="pt-2 space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-ink m-0">
+                Recent gold issues
+              </h3>
+              <span className="text-xs text-muted font-mono">
+                Latest {recentIssues.length} entries
+              </span>
+            </div>
+
+            {recentIssues.length === 0 ? (
+              <TableContainer>
+                <EmptyState description="No issues recorded yet" />
+              </TableContainer>
+            ) : (
+              <TableContainer>
+                <TableHead>
+                  <tr>
+                    <TableHeaderCell>Voucher / Txn ID</TableHeaderCell>
+                    <TableHeaderCell>Date</TableHeaderCell>
+                    <TableHeaderCell>Karigar</TableHeaderCell>
+                    <TableHeaderCell>Job order</TableHeaderCell>
+                    <TableHeaderCell align="right">Gross (g)</TableHeaderCell>
+                    <TableHeaderCell align="right">Purity (%)</TableHeaderCell>
+                    <TableHeaderCell align="right">Fine gold (g)</TableHeaderCell>
+                  </tr>
+                </TableHead>
+                <TableBody>
+                  {recentIssues.map((iss) => (
+                    <TableRow key={iss.id}>
+                      <TableCell className="font-mono font-medium">{iss.txn_id}</TableCell>
+                      <TableCell className="text-muted">{fmtDate(iss.entry_date)}</TableCell>
+                      <TableCell className="font-medium text-ink">{iss.karigar_name || "—"}</TableCell>
+                      <TableCell className="font-mono">{iss.job_no || "—"}</TableCell>
+                      <TableCell align="right"><GoldNumber value={iss.gross_mg} type="weight" size="xs" align="right" /></TableCell>
+                      <TableCell align="right"><GoldNumber value={iss.purity_bp} type="purity" size="xs" align="right" /></TableCell>
+                      <TableCell align="right"><GoldNumber value={iss.fine_mg} type="weight" size="xs" align="right" /></TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </TableContainer>
+            )}
           </div>
         </div>
       )}
