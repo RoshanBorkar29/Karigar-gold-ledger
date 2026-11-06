@@ -14,16 +14,14 @@ import { useAuth } from "../../lib/auth";
 
 /**
  * Standard Sidebar component.
- * Width: 232px on desktop.
+ * Width: 220px.
  * Product name text-only: "Karigar Ledger".
- * Nav grouped as:
- * - Daily work (Issue, Receipt, Old gold)
- * - Records (Balances, Karigars)
- * - Owner only (Loss alerts, Daily stock) shown ONLY to finance head.
- * Active item: 2px bronze left marker and ink text (not a filled pill).
- * Footer: user name, role in plain text, Sign out as text button.
+ * Group labels: 12px muted with 24px space above each group.
+ * Active item: 2px bronze left marker and ink text.
+ * Footer: user's full name on line 1, role label on line 2 ("Issue clerk" / "Finance head" in sentence case),
+ * Sign out as text button. Never repeats the same text twice.
  */
-export default function Sidebar({ isOpen = false, onClose = () => {} }) {
+export default function Sidebar({ isOpen = false, onClose = () => { } }) {
   const { user, logout, isFinanceHead } = useAuth();
   const navigate = useNavigate();
 
@@ -50,28 +48,42 @@ export default function Sidebar({ isOpen = false, onClose = () => {} }) {
     },
     ...(isFinanceHead
       ? [
-          {
-            title: "Owner only",
-            items: [
-              { label: "Loss alerts", path: "/alerts", icon: AlertTriangle },
-              { label: "Daily stock", path: "/stock", icon: FileSpreadsheet },
-            ],
-          },
-        ]
+        {
+          title: "Owner only",
+          items: [
+            { label: "Loss alerts", path: "/alerts", icon: AlertTriangle },
+            { label: "Daily stock", path: "/stock", icon: FileSpreadsheet },
+          ],
+        },
+      ]
       : []),
   ];
 
-  const formatRoleName = (role) => {
-    if (role === "finance_head") return "Finance Head";
-    if (role === "issue_clerk") return "Issue Clerk";
-    return role || "User";
+  const getRoleLabel = (role) => {
+    if (role === "finance_head") return "Finance head";
+    if (role === "issue_clerk") return "Issue clerk";
+    return role ? role.charAt(0).toUpperCase() + role.slice(1).replace("_", " ").toLowerCase() : "User";
   };
 
+  const getDisplayName = (u) => {
+    if (u?.full_name && u.full_name.trim()) {
+      return u.full_name.trim();
+    }
+    if (u?.email) {
+      const prefix = u.email.split("@")[0];
+      return prefix.charAt(0).toUpperCase() + prefix.slice(1);
+    }
+    return "User";
+  };
+
+  const roleLabel = getRoleLabel(user?.role);
+  const displayName = getDisplayName(user);
+
   const content = (
-    <div className="h-full flex flex-col justify-between bg-surface border-r border-border w-[232px] select-none">
+    <div className="h-full flex flex-col justify-between bg-sidebar border-r border-sidebar-border w-[220px] select-none">
       <div>
         {/* Brand Header: Text only, no graphic */}
-        <div className="h-14 px-6 border-b border-border flex items-center justify-between">
+        <div className="h-14 px-5 border-b border-sidebar-border flex items-center justify-between">
           <span className="text-base font-semibold text-ink tracking-tight">
             Karigar Ledger
           </span>
@@ -88,10 +100,10 @@ export default function Sidebar({ isOpen = false, onClose = () => {} }) {
         </div>
 
         {/* Grouped Navigation */}
-        <nav className="py-4 space-y-6">
-          {navGroups.map((group) => (
-            <div key={group.title} className="space-y-1">
-              <div className="px-6 text-xs text-muted font-normal uppercase-none">
+        <nav className="py-2">
+          {navGroups.map((group, groupIdx) => (
+            <div key={group.title} className={groupIdx === 0 ? "mt-3" : "mt-6"}>
+              <div className="px-5 mb-1.5 text-xs text-muted font-normal select-none">
                 {group.title}
               </div>
               <ul className="list-none p-0 m-0 space-y-0.5">
@@ -103,10 +115,9 @@ export default function Sidebar({ isOpen = false, onClose = () => {} }) {
                         to={item.path}
                         onClick={onClose}
                         className={({ isActive }) =>
-                          `flex items-center gap-3 px-6 py-2.5 text-sm transition-colors border-l-2 ${
-                            isActive
-                              ? "border-bronze text-ink font-medium bg-background"
-                              : "border-transparent text-muted hover:text-ink hover:bg-background/50 font-normal"
+                          `flex items-center gap-3 px-5 py-2 text-sm transition-colors border-l-2 ${isActive
+                            ? "border-bronze text-ink font-medium bg-background"
+                            : "border-transparent text-muted hover:text-ink hover:bg-background/40 font-normal"
                           }`
                         }
                       >
@@ -122,15 +133,15 @@ export default function Sidebar({ isOpen = false, onClose = () => {} }) {
         </nav>
       </div>
 
-      {/* Footer: user name, role in plain text, Sign out as text button */}
-      <div className="p-6 border-t border-border">
+      {/* Footer: User full name on line 1, role label on line 2, Sign out text button */}
+      <div className="p-5 border-t border-sidebar-border">
         {user ? (
-          <div className="space-y-1">
-            <div className="text-sm font-medium text-ink truncate">
-              {user.full_name || user.email}
+          <div className="space-y-0.5">
+            <div className="text-sm font-medium text-ink truncate" title={displayName}>
+              {displayName}
             </div>
             <div className="text-xs text-muted">
-              {formatRoleName(user.role)}
+              {roleLabel}
             </div>
             <div className="pt-2">
               <button
@@ -157,8 +168,8 @@ export default function Sidebar({ isOpen = false, onClose = () => {} }) {
 
   return (
     <>
-      {/* Desktop fixed sidebar */}
-      <aside className="hidden lg:block w-[232px] shrink-0 h-screen sticky top-0">
+      {/* Desktop fixed sidebar (position fixed, 100vh height, 220px width) */}
+      <aside className="hidden lg:block fixed top-0 left-0 w-[220px] h-screen h-[100vh] z-30">
         {content}
       </aside>
 
@@ -170,11 +181,13 @@ export default function Sidebar({ isOpen = false, onClose = () => {} }) {
             onClick={onClose}
             aria-hidden="true"
           />
-          <div className="relative z-10 w-[232px] max-w-[80vw] h-full shadow-lg">
+          <div className="relative z-10 w-[220px] max-w-[80vw] h-full shadow-lg">
             {content}
           </div>
         </div>
       )}
+    </>
+  );
     </>
   );
 }

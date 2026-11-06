@@ -7,7 +7,7 @@ import ErrorBoundary from "../ErrorBoundary";
 
 /**
  * Standard AppShell layout.
- * Desktop: left sidebar 232px, content max-width 960px, padding 32px.
+ * Desktop: left sidebar 220px, content left-aligned to the sidebar with 32px padding, max-width 1120px.
  * Phone (<1024px): top bar with menu button opening sheet, padding 16px.
  * Tap targets >= 44px. NO horizontal page scroll at 360px width.
  */
@@ -20,15 +20,15 @@ export default function AppShell({ title, subtitle, actions, children }) {
       <OfflineBanner />
 
       <div className="flex-1 flex min-w-0">
-        {/* Responsive Sidebar */}
+        {/* Responsive Fixed Sidebar (220px) */}
         <Sidebar
           isOpen={mobileMenuOpen}
           onClose={() => setMobileMenuOpen(false)}
         />
 
-        {/* Main Content Area */}
-        <div className="flex-1 flex flex-col min-w-0">
-          {/* Mobile top bar */}
+        {/* Main Content Area - scrolls independently with margin-left 220px on desktop */}
+        <div className="flex-1 flex flex-col min-w-0 lg:ml-[220px]">
+          {/* Mobile top bar (<1024px) */}
           <header className="lg:hidden h-14 bg-surface border-b border-border px-4 flex items-center justify-between sticky top-0 z-20">
             <span className="text-base font-semibold text-ink tracking-tight">
               Karigar Ledger
@@ -43,8 +43,8 @@ export default function AppShell({ title, subtitle, actions, children }) {
             </button>
           </header>
 
-          {/* Central container */}
-          <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-[960px] w-full mx-auto">
+          {/* Left-aligned content container, max-width 1280px, padding 24px 32px on desktop, 16px on mobile */}
+          <main className="flex-1 p-4 lg:py-6 lg:px-8 max-w-[1280px] w-full">
             <ErrorBoundary>
               {title && (
                 <PageHeader
