@@ -1,11 +1,13 @@
 import React from "react";
-import { Loader2 } from "lucide-react";
+import { SkeletonRows } from "./ui/Skeleton";
 
-export default function LoadingState({ message = "Loading ledger records..." }) {
+/**
+ * LoadingState: renders calm skeleton rows matching table/form layouts.
+ */
+export default function LoadingState({ count = 4, className = "" }) {
   return (
-    <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
-      <Loader2 className="w-8 h-8 text-yellow-500 animate-spin mb-3" />
-      <p className="text-sm font-medium text-slate-400">{message}</p>
+    <div className={`py-6 px-4 bg-surface border border-border rounded my-4 ${className}`}>
+      <SkeletonRows count={count} />
     </div>
   );
 }

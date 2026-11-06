@@ -1,27 +1,32 @@
 import React from "react";
-import { Inbox } from "lucide-react";
+import Button from "./ui/Button";
 
+/**
+ * EmptyState: A short sentence and the next action. No illustrations.
+ */
 export default function EmptyState({
   title = "No records found",
-  description = "No transactions or entries have been recorded yet.",
-  icon: Icon = Inbox,
+  description = "No entries have been recorded yet.",
   actionText = null,
   onAction = null,
+  className = "",
 }) {
   return (
-    <div className="flex flex-col items-center justify-center py-12 px-4 text-center rounded-lg border border-dashed border-slate-700 bg-slate-900/40 my-4">
-      <div className="p-3 rounded-full bg-slate-800/80 text-yellow-400 mb-3 shadow-inner">
-        <Icon className="w-8 h-8" />
-      </div>
-      <h3 className="text-base font-semibold text-slate-200">{title}</h3>
-      <p className="mt-1 text-sm text-slate-400 max-w-sm">{description}</p>
+    <div className={`py-12 px-6 text-center border border-border border-dashed rounded bg-surface/50 my-4 ${className}`}>
+      <h3 className="text-sm font-semibold text-ink m-0">
+        {title}
+      </h3>
+      {description && (
+        <p className="text-xs text-muted mt-1 max-w-sm mx-auto m-0">
+          {description}
+        </p>
+      )}
       {actionText && onAction && (
-        <button
-          onClick={onAction}
-          className="mt-4 btn-gold text-xs px-4 py-2"
-        >
-          {actionText}
-        </button>
+        <div className="mt-4 flex justify-center">
+          <Button variant="secondary" size="sm" onClick={onAction}>
+            {actionText}
+          </Button>
+        </div>
       )}
     </div>
   );

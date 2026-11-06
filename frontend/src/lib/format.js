@@ -36,19 +36,39 @@ export function fmtPurity(bp) {
 export const fmtWastage = fmtPurity;
 
 /**
- * Format monetary amount in paise into INR string.
+ * Format monetary amount in paise into INR string with Indian digit grouping (e.g. Rs 2,50,000.00).
  * @param {number|bigint|null|undefined} paise 
- * @returns {string} e.g. 20000000 -> "₹2,00,000.00"
+ * @returns {string} e.g. 20000000 -> "Rs 2,00,000.00"
  */
 export function fmtPaise(paise) {
-  if (paise === null || paise === undefined || isNaN(Number(paise))) return "₹0.00";
+  if (paise === null || paise === undefined || isNaN(Number(paise))) return "Rs 0.00";
   const rupees = Number(paise) / 100;
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
+  const formatted = new Intl.NumberFormat("en-IN", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(rupees);
+  return `Rs ${formatted}`;
+}
+
+export const fmtMoney = fmtPaise;
+
+/**
+ * Format date string into "DD Mon YYYY" using Asia/Kolkata timezone.
+ * @param {string|Date} val 
+ * @returns {string} e.g. "2026-11-06" -> "06 Nov 2026"
+ */
+export function fmtDate(val) {
+  if (!val) return "—";
+  try {
+    const s = String(val).split("T")[0];
+    const [y, m, d] = s.split("-");
+    if (!y || !m || !d) return String(val);
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const monthName = months[parseInt(m, 10) - 1] || m;
+    return `${d.padStart(2, "0")} ${monthName} ${y}`;
+  } catch {
+    return String(val);
+  }
 }
 
 /**
