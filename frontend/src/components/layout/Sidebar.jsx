@@ -1,7 +1,6 @@
 import React from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import {
-  Coins,
   SendHorizontal,
   ArrowDownToLine,
   Scale,
@@ -9,13 +8,22 @@ import {
   AlertTriangle,
   FileSpreadsheet,
   BadgePercent,
-  LogOut,
-  ShieldCheck,
-  UserCheck,
+  X,
 } from "lucide-react";
 import { useAuth } from "../../lib/auth";
 
-export default function Sidebar() {
+/**
+ * Standard Sidebar component.
+ * Width: 232px on desktop.
+ * Product name text-only: "Karigar Ledger".
+ * Nav grouped as:
+ * - Daily work (Issue, Receipt, Old gold)
+ * - Records (Balances, Karigars)
+ * - Owner only (Loss alerts, Daily stock) shown ONLY to finance head.
+ * Active item: 2px bronze left marker and ink text (not a filled pill).
+ * Footer: user name, role in plain text, Sign out as text button.
+ */
+export default function Sidebar({ isOpen = false, onClose = () => {} }) {
   const { user, logout, isFinanceHead } = useAuth();
   const navigate = useNavigate();
 
@@ -24,142 +32,149 @@ export default function Sidebar() {
     navigate("/login");
   };
 
-  const navItems = [
+  const navGroups = [
     {
-      label: "Gold Issues",
-      path: "/issues",
-      icon: SendHorizontal,
-      roles: ["issue_clerk", "finance_head"],
+      title: "Daily work",
+      items: [
+        { label: "Issue", path: "/issues", icon: SendHorizontal },
+        { label: "Receipt", path: "/receipts", icon: ArrowDownToLine },
+        { label: "Old gold", path: "/old-gold", icon: BadgePercent },
+      ],
     },
     {
-      label: "Gold Receipts",
-      path: "/receipts",
-      icon: ArrowDownToLine,
-      roles: ["issue_clerk", "finance_head"],
+      title: "Records",
+      items: [
+        { label: "Balances", path: "/balances", icon: Scale },
+        { label: "Karigars", path: "/karigars", icon: Users },
+      ],
     },
-    {
-      label: "Karigar Balances",
-      path: "/balances",
-      icon: Scale,
-      roles: ["issue_clerk", "finance_head"],
-    },
-    {
-      label: "Karigar Master",
-      path: "/karigars",
-      icon: Users,
-      roles: ["issue_clerk", "finance_head"],
-    },
-    {
-      label: "Old-Gold Desk",
-      path: "/old-gold",
-      icon: BadgePercent,
-      roles: ["issue_clerk", "finance_head"],
-    },
-    // Finance Head Only
-    {
-      label: "Loss Alerts",
-      path: "/alerts",
-      icon: AlertTriangle,
-      roles: ["finance_head"],
-      badge: "Owner",
-    },
-    {
-      label: "Stock Statement",
-      path: "/stock",
-      icon: FileSpreadsheet,
-      roles: ["finance_head"],
-      badge: "Owner",
-    },
+    ...(isFinanceHead
+      ? [
+          {
+            title: "Owner only",
+            items: [
+              { label: "Loss alerts", path: "/alerts", icon: AlertTriangle },
+              { label: "Daily stock", path: "/stock", icon: FileSpreadsheet },
+            ],
+          },
+        ]
+      : []),
   ];
 
-  const visibleNav = navItems.filter(
-    (item) => !item.roles || item.roles.includes(user?.role)
-  );
+  const formatRoleName = (role) => {
+    if (role === "finance_head") return "Finance Head";
+    if (role === "issue_clerk") return "Issue Clerk";
+    return role || "User";
+  };
 
-  return (
-    <aside className="w-64 bg-slate-950 border-r border-slate-800 flex flex-col justify-between shrink-0 h-screen sticky top-0">
+  const content = (
+    <div className="h-full flex flex-col justify-between bg-surface border-r border-border w-[232px] select-none">
       <div>
-        {/* Brand header */}
-        <div className="p-5 border-b border-slate-800/80 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-600 to-yellow-400 flex items-center justify-center text-slate-950 shadow-md">
-            <Coins className="w-6 h-6" />
-          </div>
-          <div>
-            <h1 className="font-bold text-sm text-yellow-400 leading-tight">
-              Karigar Ledger
-            </h1>
-            <p className="text-[11px] text-slate-400">Coimbatore Workshop</p>
-          </div>
+        {/* Brand Header: Text only, no graphic */}
+        <div className="h-14 px-6 border-b border-border flex items-center justify-between">
+          <span className="text-base font-semibold text-ink tracking-tight">
+            Karigar Ledger
+          </span>
+          {isOpen && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="lg:hidden p-2 text-muted hover:text-ink min-w-[44px] min-h-[44px] flex items-center justify-center rounded"
+              aria-label="Close navigation"
+            >
+              <X className="w-5 h-5 stroke-[1.75]" />
+            </button>
+          )}
         </div>
 
-        {/* User Card */}
-        {user && (
-          <div className="mx-4 my-3 p-3 rounded-lg bg-slate-900 border border-slate-800/80">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-yellow-400 border border-slate-700 font-semibold text-xs">
-                {user.full_name?.charAt(0) || "U"}
+        {/* Grouped Navigation */}
+        <nav className="py-4 space-y-6">
+          {navGroups.map((group) => (
+            <div key={group.title} className="space-y-1">
+              <div className="px-6 text-xs text-muted font-normal uppercase-none">
+                {group.title}
               </div>
-              <div className="overflow-hidden">
-                <p className="text-xs font-semibold text-slate-200 truncate">
-                  {user.full_name}
-                </p>
-                <div className="flex items-center gap-1 mt-0.5">
-                  {isFinanceHead ? (
-                    <span className="badge badge-gold text-[10px] py-0 px-1.5 flex items-center gap-1">
-                      <ShieldCheck className="w-3 h-3" /> Finance Head
-                    </span>
-                  ) : (
-                    <span className="badge badge-neutral text-[10px] py-0 px-1.5 flex items-center gap-1">
-                      <UserCheck className="w-3 h-3" /> Issue Clerk
-                    </span>
-                  )}
-                </div>
-              </div>
+              <ul className="list-none p-0 m-0 space-y-0.5">
+                {group.items.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <li key={item.path}>
+                      <NavLink
+                        to={item.path}
+                        onClick={onClose}
+                        className={({ isActive }) =>
+                          `flex items-center gap-3 px-6 py-2.5 text-sm transition-colors border-l-2 ${
+                            isActive
+                              ? "border-bronze text-ink font-medium bg-background"
+                              : "border-transparent text-muted hover:text-ink hover:bg-background/50 font-normal"
+                          }`
+                        }
+                      >
+                        <Icon className="w-4 h-4 shrink-0 stroke-[1.75]" />
+                        <span>{item.label}</span>
+                      </NavLink>
+                    </li>
+                  );
+                })}
+              </ul>
             </div>
-          </div>
-        )}
-
-        {/* Navigation links */}
-        <nav className="px-3 py-2 space-y-1">
-          {visibleNav.map((item) => {
-            const Icon = item.icon;
-            return (
-              <NavLink
-                key={item.path}
-                to={item.path}
-                className={({ isActive }) =>
-                  `flex items-center justify-between px-3 py-2.5 rounded-lg text-xs font-medium transition ${
-                    isActive
-                      ? "bg-yellow-500/15 text-yellow-400 border border-yellow-500/30"
-                      : "text-slate-400 hover:text-slate-200 hover:bg-slate-900"
-                  }`
-                }
-              >
-                <div className="flex items-center gap-3">
-                  <Icon className="w-4 h-4 shrink-0" />
-                  <span>{item.label}</span>
-                </div>
-                {item.badge && (
-                  <span className="badge badge-gold text-[9px] py-0 px-1">
-                    {item.badge}
-                  </span>
-                )}
-              </NavLink>
-            );
-          })}
+          ))}
         </nav>
       </div>
 
-      {/* Footer & Logout */}
-      <div className="p-4 border-t border-slate-800">
-        <button
-          onClick={handleLogout}
-          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-rose-400 hover:bg-rose-950/30 hover:text-rose-300 transition"
-        >
-          <LogOut className="w-4 h-4" />
-          <span>Sign Out</span>
-        </button>
+      {/* Footer: user name, role in plain text, Sign out as text button */}
+      <div className="p-6 border-t border-border">
+        {user ? (
+          <div className="space-y-1">
+            <div className="text-sm font-medium text-ink truncate">
+              {user.full_name || user.email}
+            </div>
+            <div className="text-xs text-muted">
+              {formatRoleName(user.role)}
+            </div>
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="text-xs text-muted hover:text-ink hover:underline p-0 m-0 bg-transparent border-none cursor-pointer"
+              >
+                Sign out
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => navigate("/login")}
+            className="text-xs text-muted hover:text-ink hover:underline p-0 m-0 bg-transparent border-none cursor-pointer"
+          >
+            Sign in
+          </button>
+        )}
       </div>
-    </aside>
+    </div>
+  );
+
+  return (
+    <>
+      {/* Desktop fixed sidebar */}
+      <aside className="hidden lg:block w-[232px] shrink-0 h-screen sticky top-0">
+        {content}
+      </aside>
+
+      {/* Mobile drawer backdrop and sheet */}
+      {isOpen && (
+        <div className="lg:hidden fixed inset-0 z-50 flex">
+          <div
+            className="fixed inset-0 bg-ink/20 backdrop-blur-xs transition-opacity"
+            onClick={onClose}
+            aria-hidden="true"
+          />
+          <div className="relative z-10 w-[232px] max-w-[80vw] h-full shadow-lg">
+            {content}
+          </div>
+        </div>
+      )}
+    </>
   );
 }
