@@ -15,6 +15,7 @@ import ErrorState from "../components/ErrorState";
 import EmptyState from "../components/EmptyState";
 import Button from "../components/ui/Button";
 import Field from "../components/ui/Field";
+import DateInput from "../components/ui/DateInput";
 import StatusBadge from "../components/ui/StatusBadge";
 import {
   TableContainer,
@@ -136,18 +137,17 @@ export default function KarigarBalances() {
   return (
     <AppShell
       title="Karigar Gold Balances"
-      subtitle="Artisan fine-gold account position, running liability, and per-job settlements"
+      subtitle="Karigar fine-gold account position, running liability, and per-job settlements"
       actions={
         <div className="flex items-center gap-2">
           <label htmlFor="asOfDate" className="text-xs text-muted font-medium select-none">
             As of:
           </label>
-          <input
+          <DateInput
             id="asOfDate"
-            type="date"
             value={asOfDate}
             onChange={(e) => setAsOfDate(e.target.value)}
-            className="h-9 px-3 bg-surface border border-border rounded text-xs font-mono text-ink outline-none focus:border-bronze focus:ring-2 focus:ring-bronze/20"
+            className="w-40"
           />
         </div>
       }
@@ -166,7 +166,7 @@ export default function KarigarBalances() {
             />
           </div>
           <span className="text-xs text-muted">
-            Pure gold currently in artisan custody
+            Pure gold currently in karigar custody
           </span>
         </div>
 
@@ -196,7 +196,7 @@ export default function KarigarBalances() {
 
         <div className="p-4 bg-surface border border-border rounded flex flex-col justify-between">
           <span className="text-xs text-muted font-medium">
-            Active Artisans
+            Active Karigars
           </span>
           <div className="my-2">
             <span className="font-mono text-xl font-semibold text-ink">
@@ -210,7 +210,7 @@ export default function KarigarBalances() {
       </div>
 
       {loading ? (
-        <LoadingState message="Calculating artisan running balances..." />
+        <LoadingState message="Calculating karigar running balances..." />
       ) : error ? (
         <ErrorState message={error} onRetry={fetchBalances} />
       ) : summaryList.length === 0 ? (
@@ -255,7 +255,7 @@ export default function KarigarBalances() {
                     size="base"
                     align="right"
                     isNegative={row.net_outstanding_fine_mg < 0}
-                    negativeLabel="Artisan surplus"
+                    negativeLabel="Karigar surplus"
                   />
                 </TableCell>
                 <TableCell align="center">
@@ -358,7 +358,7 @@ export default function KarigarBalances() {
 
                   {karigarDetail.jobs.length === 0 ? (
                     <div className="p-4 bg-background border border-border rounded text-xs text-muted text-center">
-                      No jobs recorded for this artisan.
+                      No jobs recorded for this karigar.
                     </div>
                   ) : (
                     <TableContainer>

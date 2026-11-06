@@ -14,12 +14,12 @@ export function SkeletonBlock({ className = "" }) {
 
 export function SkeletonRows({ count = 4, className = "" }) {
   return (
-    <div className={`space-y-3 ${className}`}>
+    <div className={`divide-y divide-border ${className}`}>
       {Array.from({ length: count }).map((_, i) => (
-        <div key={i} className="flex items-center gap-4 py-2 border-b border-border/40">
-          <SkeletonBlock className="h-4 w-1/4" />
-          <SkeletonBlock className="h-4 w-1/3" />
-          <SkeletonBlock className="h-4 w-1/6 ml-auto" />
+        <div key={i} className="h-10 px-4 flex items-center gap-4">
+          <SkeletonBlock className="h-3.5 w-1/4" />
+          <SkeletonBlock className="h-3.5 w-1/3" />
+          <SkeletonBlock className="h-3.5 w-1/6 ml-auto" />
         </div>
       ))}
     </div>

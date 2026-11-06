@@ -120,7 +120,7 @@ export default function LossAlerts() {
             Finance Head Access Only
           </h2>
           <p className="text-xs text-muted mt-2 m-0 leading-relaxed">
-            Loss-drift statistical alerts and artisan wastage variance calculations are confidential financial controls restricted to workshop management.
+            Loss-drift statistical alerts and karigar wastage variance calculations are confidential financial controls restricted to workshop management.
           </p>
         </div>
       </AppShell>
@@ -133,7 +133,7 @@ export default function LossAlerts() {
   return (
     <AppShell
       title="Loss-Drift Alerts & Craft Audit"
-      subtitle="Statistical early-warning system flagging abnormal artisan wastage before month-end reconciliation"
+      subtitle="Statistical early-warning system flagging abnormal karigar wastage before month-end reconciliation"
       actions={
         <div className="flex items-center gap-3">
           <select
@@ -174,7 +174,7 @@ export default function LossAlerts() {
             </span>
           </div>
           <span className="text-xs text-muted">
-            Artisans exceeding baseline + 50 bp / 1 stddev
+            Karigars exceeding baseline + 50 bp / 1 stddev
           </span>
         </div>
 
@@ -219,7 +219,7 @@ export default function LossAlerts() {
         <ErrorState message={error} onRetry={fetchAlerts} />
       ) : alerts.length === 0 ? (
         <EmptyState
-          title="All Artisans Operating Within Normal Tolerance"
+          title="All Karigars Operating Within Normal Tolerance"
           description="No abnormal wastage loss drift detected across active karigar workbenches."
           actionText="Run Verification Scan"
           onAction={handleTriggerScan}
@@ -388,7 +388,7 @@ export default function LossAlerts() {
               </div>
             )}
 
-            <div className="mt-6 flex justify-end gap-2 pt-2">
+            <div className="mt-6 flex justify-end gap-2 pt-4 border-t border-border">
               <Button
                 variant="secondary"
                 size="sm"
@@ -418,7 +418,7 @@ export default function LossAlerts() {
               Review Loss Alert: {reviewAlertTarget.karigar_name}
             </h3>
 
-            <div className="mt-4 space-y-3">
+            <div className="mt-4 space-y-4">
               <div>
                 <label className="block text-xs font-medium text-ink mb-1.5">
                   Resolution Decision
@@ -456,12 +456,12 @@ export default function LossAlerts() {
                   type="textarea"
                   value={reviewNote}
                   onChange={(e) => setReviewNote(e.target.value)}
-                  placeholder="e.g. Artisan verified; excess loss recovered in bench wash filings."
+                  placeholder="e.g. Karigar verified; excess loss recovered in bench wash filings."
                 />
               </div>
             </div>
 
-            <div className="mt-6 flex justify-end gap-2 pt-2">
+            <div className="mt-6 flex justify-end gap-2 pt-4 border-t border-border">
               <Button
                 variant="secondary"
                 size="sm"

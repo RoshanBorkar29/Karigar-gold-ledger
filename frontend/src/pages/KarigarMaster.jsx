@@ -135,7 +135,7 @@ export default function KarigarMaster() {
   return (
     <AppShell
       title="Karigar Master & Agreed Wastage"
-      subtitle="Manage artisan profiles and contractual wastage limits per ornament category"
+      subtitle="Manage karigar profiles and contractual wastage limits per ornament category"
       actions={
         <div className="flex items-center gap-2">
           <Button
@@ -193,7 +193,7 @@ export default function KarigarMaster() {
               Register New Karigar
             </h3>
             <p className="text-xs text-muted mt-1 m-0">
-              Add a new goldsmith artisan to workshop records.
+              Add a new goldsmith karigar to workshop records.
             </p>
 
             {addError && (
@@ -202,9 +202,9 @@ export default function KarigarMaster() {
               </div>
             )}
 
-            <form onSubmit={handleCreateKarigar} className="mt-4 space-y-3">
+            <form onSubmit={handleCreateKarigar} className="mt-4 space-y-4">
               <Field
-                label="Artisan Code"
+                label="Karigar Code"
                 id="artisanCode"
                 placeholder="e.g. K-041"
                 required
@@ -221,7 +221,7 @@ export default function KarigarMaster() {
                 onChange={(e) => setNewName(e.target.value)}
               />
 
-              <div className="mt-6 flex justify-end gap-2 pt-2">
+              <div className="mt-6 flex justify-end gap-2 pt-2 border-t border-border">
                 <Button
                   type="button"
                   variant="secondary"
@@ -245,13 +245,13 @@ export default function KarigarMaster() {
       )}
 
       {loading ? (
-        <LoadingState message="Loading artisan master registry..." />
+        <LoadingState message="Loading karigar master registry..." />
       ) : error ? (
         <ErrorState message={error} onRetry={fetchData} />
       ) : karigars.length === 0 ? (
         <EmptyState
           title="No Karigars Registered"
-          description="Register your workshop artisans to start tracking gold issues and agreed wastage."
+          description="Register your workshop karigars to start tracking gold issues and agreed wastage."
           actionText="Add First Karigar"
           onAction={() => setShowAddKarigar(true)}
         />
@@ -262,7 +262,7 @@ export default function KarigarMaster() {
             <TableContainer>
               <TableHead>
                 <tr>
-                  <TableHeaderCell>Artisan Code</TableHeaderCell>
+                  <TableHeaderCell>Karigar Code</TableHeaderCell>
                   <TableHeaderCell>Full Name</TableHeaderCell>
                   <TableHeaderCell align="center">Status</TableHeaderCell>
                   <TableHeaderCell align="right">Actions</TableHeaderCell>
