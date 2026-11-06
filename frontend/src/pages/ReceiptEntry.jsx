@@ -1,23 +1,20 @@
 import React, { useState, useEffect } from "react";
-import {
-  ArrowDownToLine,
-  Printer,
-  Sparkles,
-  CheckCircle2,
-  AlertCircle,
-  Gem,
-  Hammer,
-  Wind,
-} from "lucide-react";
+import { Printer, CheckCircle2 } from "lucide-react";
 import AppShell from "../components/layout/AppShell";
+import PageHeader from "../components/ui/PageHeader";
+import Field from "../components/ui/Field";
+import Button from "../components/ui/Button";
 import GoldNumber from "../components/GoldNumber";
 import PhotoReader from "../components/PhotoReader";
 import LoadingState from "../components/LoadingState";
 import ErrorState from "../components/ErrorState";
+import EmptyState from "../components/EmptyState";
+import StatusBadge from "../components/ui/StatusBadge";
 import { api } from "../lib/api";
 import {
   fmtG,
   fmtPurity,
+  fmtDate,
   parseG,
   parsePurity,
   calcFineMg,
@@ -40,13 +37,12 @@ export default function ReceiptEntry() {
   const [entryDate, setEntryDate] = useState(
     new Date().toISOString().slice(0, 10)
   );
+  const [note, setNote] = useState("");
 
   const [jobSettlement, setJobSettlement] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState(null);
-
-  // Receipt Slip Modal
-  const [receiptSlip, setReceiptSlip] = useState(null);
+  const [savedSuccess, setSavedSuccess] = useState(null);
 
   const fetchKarigars = async () => {
     try {
@@ -55,7 +51,7 @@ export default function ReceiptEntry() {
       const kList = await api.getKarigars();
       setKarigars(kList);
       if (kList.length > 0) {
-        setKarigarId(kList[0].id.toString());
+        setKarigarId(String(kList[0].id));
       }
     } catch (err) {
       setError(err.message || "Failed to load karigars");
@@ -68,32 +64,37 @@ export default function ReceiptEntry() {
     fetchKarigars();
   }, []);
 
-  // When karigar changes, fetch their open jobs
+  // When karigar changes, fetch open jobs
   useEffect(() => {
     if (!karigarId) return;
+
     const loadJobs = async () => {
       try {
         const jList = await api.getKarigarJobs(karigarId, true);
         setJobs(jList);
         if (jList.length > 0) {
-          setSelectedJobId(jList[0].id.toString());
+          setSelectedJobId(String(jList[0].id));
         } else {
           setSelectedJobId("");
           setJobSettlement(null);
         }
       } catch {
         setJobs([]);
+        setSelectedJobId("");
+        setJobSettlement(null);
       }
     };
+
     loadJobs();
   }, [karigarId]);
 
-  // When job changes, fetch its live settlement progress
+  // When job changes, fetch live settlement calculation
   useEffect(() => {
     if (!selectedJobId) {
       setJobSettlement(null);
       return;
     }
+
     const loadSettlement = async () => {
       try {
         const s = await api.getJobSettlement(selectedJobId);
@@ -102,10 +103,11 @@ export default function ReceiptEntry() {
         setJobSettlement(null);
       }
     };
+
     loadSettlement();
   }, [selectedJobId]);
 
-  // Client-side preview
+  // Client-side fine weight calculation
   let previewGrossMg = 0;
   let previewPurityBp = 0;
   let previewFineMg = 0;
@@ -116,7 +118,7 @@ export default function ReceiptEntry() {
       previewFineMg = calcFineMg(previewGrossMg, previewPurityBp);
     }
   } catch {
-    //
+    // Zero on incomplete input
   }
 
   const handlePhotoConfirmed = ({ valueStr }) => {
@@ -128,7 +130,7 @@ export default function ReceiptEntry() {
     setFormError(null);
 
     if (!selectedJobId) {
-      setFormError("Please select an active job for receipt.");
+      setFormError("Please select an active open job order.");
       return;
     }
 
@@ -144,7 +146,7 @@ export default function ReceiptEntry() {
     if (kind === "finished") {
       const cleanHuid = huid.trim().toUpperCase();
       if (!cleanHuid || cleanHuid.length !== 6 || !/^[A-Z0-9]{6}$/.test(cleanHuid)) {
-        setFormError("Finished jewellery requires a valid 6-character alphanumeric Hallmarking HUID (e.g. AB1234).");
+        setFormError("Finished jewellery requires a valid 6-character alphanumeric BIS HUID (e.g. AB1234).");
         return;
       }
     }
@@ -158,6 +160,7 @@ export default function ReceiptEntry() {
         purity_bp: pBp,
         entry_date: entryDate,
         huid: kind === "finished" ? huid.trim().toUpperCase() : undefined,
+        note: note.trim() || undefined,
       };
 
       const result = await api.createReceipt(payload);
@@ -165,24 +168,23 @@ export default function ReceiptEntry() {
       const selectedKarigar = karigars.find((k) => k.id === Number(karigarId));
       const selectedJob = jobs.find((j) => j.id === Number(selectedJobId));
 
-      setReceiptSlip({
+      setSavedSuccess({
         txn_id: result.txn_id,
         karigar_name: selectedKarigar?.name,
         karigar_code: selectedKarigar?.code,
         job_no: selectedJob?.job_no,
         kind: result.kind,
-        gross_mg: result.gross_mg,
-        purity_bp: result.purity_bp,
         fine_mg: result.fine_mg,
+        gross_mg: result.gross_mg,
         huid: result.huid,
-        entry_date: result.entry_date,
       });
 
-      // Reset
+      // Reset input
       setGrossInput("");
       setHuid("");
+      setNote("");
 
-      // Refresh settlement status
+      // Refresh live settlement
       const updatedS = await api.getJobSettlement(selectedJobId);
       setJobSettlement(updatedS);
     } catch (err) {
@@ -192,43 +194,78 @@ export default function ReceiptEntry() {
     }
   };
 
-  return (
-    <AppShell
-      title="Gold Receipt Entry"
-      subtitle="Receive finished pieces, workshop scrap, or fine bench filings against active jobs"
-    >
-      {loading ? (
-        <LoadingState message="Loading receipt configuration..." />
-      ) : error ? (
-        <ErrorState message={error} onRetry={fetchKarigars} />
-      ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Main Receipt Form */}
-          <div className="lg:col-span-2 space-y-6">
-            <div className="card-glass p-6">
-              <h2 className="text-base font-bold text-slate-100 flex items-center gap-2 pb-4 border-b border-slate-800">
-                <ArrowDownToLine className="w-5 h-5 text-yellow-400" />
-                Record Karigar-to-Vault Receipt
-              </h2>
+  // Settlement metrics
+  const issuedFineMg = jobSettlement?.issued_fine_mg ?? 0;
+  const returnedFineMg = jobSettlement?.returned_mg ?? 0;
+  const outstandingBeforeMg = jobSettlement?.outstanding_mg ?? 0;
+  const outstandingAfterMg = Math.max(0, outstandingBeforeMg - previewFineMg);
+  const allowedWastageMg = jobSettlement?.allowed_mg ?? 0;
+  const excessLossMg = Math.max(0, outstandingAfterMg - allowedWastageMg);
 
+  let settlementStatusText = "Within allowance";
+  if (excessLossMg > 0) {
+    settlementStatusText = "Outstanding beyond allowance, job open";
+  }
+
+  const activeJob = jobs.find((j) => j.id === Number(selectedJobId));
+
+  return (
+    <AppShell>
+      <PageHeader
+        title="Receive gold"
+        description="Receive finished jewellery, melting scrap, or bench filings against active jobs"
+      />
+
+      {loading ? (
+        <LoadingState count={5} />
+      ) : error ? (
+        <ErrorState error={error} onRetry={fetchKarigars} />
+      ) : (
+        <div className="space-y-6">
+          {/* Quiet persistent success confirmation */}
+          {savedSuccess && (
+            <div className="p-4 rounded border border-status-ok/20 bg-status-ok-tint flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-2 text-sm text-status-ok font-medium">
+                <CheckCircle2 className="w-4 h-4 shrink-0 stroke-[2]" />
+                <span>
+                  Receipt {savedSuccess.txn_id} saved for {savedSuccess.karigar_name} ({savedSuccess.karigar_code})
+                </span>
+              </div>
+              <Button
+                variant="secondary"
+                size="sm"
+                icon={Printer}
+                onClick={() => window.print()}
+              >
+                Print slip
+              </Button>
+            </div>
+          )}
+
+          {/* Two-column layout on desktop: Left Form (max 480px), Right Live Settlement */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+            {/* Left: Form */}
+            <div className="lg:col-span-7 space-y-6 max-w-[480px]">
               {formError && (
-                <div className="mt-4 p-3 rounded-lg bg-rose-950/40 border border-rose-800 text-rose-300 text-xs flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 shrink-0" />
-                  <span>{formError}</span>
-                </div>
+                <ErrorState
+                  error={formError}
+                  title="Receipt submission blocked"
+                  message={formError}
+                />
               )}
 
-              <form onSubmit={handleSubmit} className="mt-5 space-y-4">
-                {/* Karigar and Job */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                      Artisan / Karigar
+              <form onSubmit={handleSubmit} className="space-y-5">
+                {/* Karigar & Date */}
+                <div className="space-y-4">
+                  <div className="space-y-1.5">
+                    <label htmlFor="karigarSelect" className="block text-sm font-medium text-ink">
+                      Karigar <span className="text-status-problem">*</span>
                     </label>
                     <select
+                      id="karigarSelect"
                       value={karigarId}
                       onChange={(e) => setKarigarId(e.target.value)}
-                      className="input-base"
+                      className="w-full h-11 px-3 bg-surface border border-border rounded text-sm text-ink outline-none focus:border-bronze focus:ring-2 focus:ring-bronze/20"
                     >
                       {karigars.map((k) => (
                         <option key={k.id} value={k.id}>
@@ -238,367 +275,217 @@ export default function ReceiptEntry() {
                     </select>
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                      Target Work Order / Job
-                    </label>
-                    {jobs.length > 0 ? (
-                      <select
-                        value={selectedJobId}
-                        onChange={(e) => setSelectedJobId(e.target.value)}
-                        className="input-base"
-                      >
-                        {jobs.map((j) => (
-                          <option key={j.id} value={j.id}>
-                            {j.job_no} — {j.description || "Ornament"}
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      <div className="input-base text-xs text-rose-400 flex items-center">
-                        No open jobs found for this artisan
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Return Kind Selector */}
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                    Return Classification
-                  </label>
-                  <div className="grid grid-cols-3 gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setKind("finished")}
-                      className={`p-3 rounded-lg border text-left flex items-center gap-2.5 transition ${
-                        kind === "finished"
-                          ? "border-yellow-500 bg-yellow-500/15 text-yellow-300"
-                          : "border-slate-800 bg-slate-900 text-slate-400 hover:border-slate-700"
-                      }`}
-                    >
-                      <Gem className="w-4 h-4 shrink-0" />
-                      <div>
-                        <p className="text-xs font-bold leading-tight">Finished Piece</p>
-                        <p className="text-[10px] opacity-75">Requires HUID</p>
-                      </div>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setKind("scrap")}
-                      className={`p-3 rounded-lg border text-left flex items-center gap-2.5 transition ${
-                        kind === "scrap"
-                          ? "border-yellow-500 bg-yellow-500/15 text-yellow-300"
-                          : "border-slate-800 bg-slate-900 text-slate-400 hover:border-slate-700"
-                      }`}
-                    >
-                      <Hammer className="w-4 h-4 shrink-0" />
-                      <div>
-                        <p className="text-xs font-bold leading-tight">Workshop Scrap</p>
-                        <p className="text-[10px] opacity-75">Off-cuts & sprues</p>
-                      </div>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setKind("filings")}
-                      className={`p-3 rounded-lg border text-left flex items-center gap-2.5 transition ${
-                        kind === "filings"
-                          ? "border-yellow-500 bg-yellow-500/15 text-yellow-300"
-                          : "border-slate-800 bg-slate-900 text-slate-400 hover:border-slate-700"
-                      }`}
-                    >
-                      <Wind className="w-4 h-4 shrink-0" />
-                      <div>
-                        <p className="text-xs font-bold leading-tight">Bench Filings</p>
-                        <p className="text-[10px] opacity-75">Recovered gold dust</p>
-                      </div>
-                    </button>
-                  </div>
-                </div>
-
-                {/* HUID Field for Finished Piece */}
-                {kind === "finished" && (
-                  <div className="p-3.5 rounded-lg bg-yellow-500/10 border border-yellow-500/30">
-                    <label className="block text-xs font-semibold text-yellow-300 mb-1">
-                      Hallmark Unique Identification (HUID) — Mandatory
+                  <div className="space-y-1.5">
+                    <label htmlFor="entryDate" className="block text-sm font-medium text-ink">
+                      Receipt date
                     </label>
                     <input
-                      type="text"
+                      id="entryDate"
+                      type="date"
+                      value={entryDate}
+                      onChange={(e) => setEntryDate(e.target.value)}
+                      className="w-full h-11 px-3 bg-surface border border-border rounded text-sm text-ink outline-none focus:border-bronze focus:ring-2 focus:ring-bronze/20"
+                    />
+                    <p className="text-xs text-muted mt-1">
+                      Recorded date: {fmtDate(entryDate)} (Asia/Kolkata)
+                    </p>
+                  </div>
+                </div>
+
+                {/* Job Selection */}
+                <div className="pt-2 border-t border-border space-y-1.5">
+                  <label htmlFor="jobSelect" className="block text-sm font-medium text-ink">
+                    Active job order <span className="text-status-problem">*</span>
+                  </label>
+                  {jobs.length > 0 ? (
+                    <select
+                      id="jobSelect"
+                      value={selectedJobId}
+                      onChange={(e) => setSelectedJobId(e.target.value)}
+                      className="w-full h-11 px-3 bg-surface border border-border rounded text-sm text-ink outline-none focus:border-bronze focus:ring-2 focus:ring-bronze/20"
+                    >
+                      {jobs.map((j) => (
+                        <option key={j.id} value={j.id}>
+                          {j.job_no} — {j.description || "Ornament"} (Agreed: {fmtPurity(j.wastage_bp)}%)
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <EmptyState
+                      title="No open jobs"
+                      description="This karigar has no active open job orders to receive against."
+                    />
+                  )}
+                </div>
+
+                {/* Return Kind & HUID */}
+                <div className="pt-2 border-t border-border space-y-4">
+                  <div className="space-y-1.5">
+                    <label htmlFor="receiptKind" className="block text-sm font-medium text-ink">
+                      Return kind <span className="text-status-problem">*</span>
+                    </label>
+                    <select
+                      id="receiptKind"
+                      value={kind}
+                      onChange={(e) => {
+                        setKind(e.target.value);
+                        if (e.target.value !== "finished") setHuid("");
+                      }}
+                      className="w-full h-11 px-3 bg-surface border border-border rounded text-sm text-ink outline-none focus:border-bronze focus:ring-2 focus:ring-bronze/20"
+                    >
+                      <option value="finished">Finished jewellery (requires BIS HUID)</option>
+                      <option value="scrap">Melting scrap</option>
+                      <option value="filings">Bench filings</option>
+                    </select>
+                  </div>
+
+                  {kind === "finished" && (
+                    <Field
+                      label="Hallmarking HUID"
+                      id="huid"
                       required
-                      maxLength={6}
                       placeholder="e.g. AB1234"
                       value={huid}
                       onChange={(e) => setHuid(e.target.value.toUpperCase())}
-                      className="input-base font-mono uppercase tracking-widest text-sm"
+                      maxLength={6}
+                      helperText="Exact 6-character uppercase alphanumeric Bureau of Indian Standards identifier"
                     />
-                    <span className="text-[10px] text-yellow-400/80 mt-1 block">
-                      Strict 6-character alphanumeric statutory BIS hallmark code.
-                    </span>
-                  </div>
-                )}
-
-                {/* Weights and Date */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                      Net Gross Weight
-                    </label>
-                    <div className="relative">
-                      <input
-                        type="text"
-                        required
-                        placeholder="103.004"
-                        value={grossInput}
-                        onChange={(e) => setGrossInput(e.target.value)}
-                        className="input-base font-mono text-base pr-8"
-                      />
-                      <span className="absolute right-3 top-2.5 text-xs text-slate-500 font-mono">
-                        g
-                      </span>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                      Tested Purity
-                    </label>
-                    <div className="relative">
-                      <input
-                        type="text"
-                        required
-                        placeholder="91.60"
-                        value={purityInput}
-                        onChange={(e) => setPurityInput(e.target.value)}
-                        className="input-base font-mono text-base pr-8"
-                      />
-                      <span className="absolute right-3 top-2.5 text-xs text-slate-500 font-mono">
-                        %
-                      </span>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                      Receipt Date
-                    </label>
-                    <input
-                      type="date"
-                      required
-                      value={entryDate}
-                      onChange={(e) => setEntryDate(e.target.value)}
-                      className="input-base"
-                    />
-                  </div>
+                  )}
                 </div>
 
-                {/* Fine Weight Live Preview */}
-                <div className="p-4 rounded-lg bg-yellow-500/10 border border-yellow-500/20 flex items-center justify-between">
-                  <div>
-                    <span className="text-xs font-medium text-slate-400 block">
-                      Calculated Pure Gold Returned
-                    </span>
-                    <span className="text-[11px] text-slate-500">
-                      Credit applied to karigar running ledger balance
-                    </span>
-                  </div>
-                  <div className="text-right">
-                    <GoldNumber
-                      value={previewFineMg}
-                      size="xl"
-                      highlight="gold"
-                    />
-                    <span className="text-[11px] text-slate-400 block font-mono">
-                      {previewFineMg.toLocaleString()} mg
-                    </span>
-                  </div>
+                {/* Gross & Purity */}
+                <div className="pt-2 border-t border-border space-y-4">
+                  <Field
+                    label="Gross weight"
+                    id="grossWeight"
+                    type="text"
+                    required
+                    placeholder="103.004"
+                    value={grossInput}
+                    onChange={(e) => setGrossInput(e.target.value)}
+                    helperText="Input in grams up to 3 decimals (e.g. 103.004)"
+                  />
+
+                  <Field
+                    label="Purity"
+                    id="purity"
+                    type="text"
+                    required
+                    placeholder="91.60"
+                    value={purityInput}
+                    onChange={(e) => setPurityInput(e.target.value)}
+                    helperText="Standard purity: 91.60% (22K)"
+                  />
+
+                  <Field
+                    label="Remarks (optional)"
+                    id="note"
+                    placeholder="e.g. Verified weight on precision analytical scale"
+                    value={note}
+                    onChange={(e) => setNote(e.target.value)}
+                  />
+                </div>
+
+                {/* Photo Reader */}
+                <div className="pt-2 border-t border-border">
+                  <PhotoReader
+                    mode="scale"
+                    currentTypedValue={grossInput}
+                    onReadingConfirmed={handlePhotoConfirmed}
+                  />
                 </div>
 
                 {/* Submit */}
-                <div className="pt-2">
-                  <button
+                <div className="pt-4">
+                  <Button
                     type="submit"
-                    disabled={submitting || previewFineMg <= 0 || !selectedJobId}
-                    className="w-full btn-gold py-2.5"
+                    variant="primary"
+                    size="lg"
+                    loading={submitting}
+                    disabled={previewFineMg <= 0 || !selectedJobId}
+                    disabledReason={
+                      previewFineMg <= 0
+                        ? "Enter valid gross weight and purity to receive gold."
+                        : !selectedJobId
+                        ? "Select an active job order to record return receipt."
+                        : ""
+                    }
+                    className="w-full"
                   >
-                    {submitting ? "Writing Receipt..." : "Record Receipt to Vault"}
-                  </button>
+                    Receive gold into vault
+                  </Button>
                 </div>
               </form>
             </div>
-          </div>
 
-          {/* Right Column: Live Job Settlement Progress & Photo Reader */}
-          <div className="space-y-6">
-            {jobSettlement ? (
-              <div className="card-glass p-5 border border-slate-800 space-y-3">
-                <div className="flex items-center justify-between pb-2 border-b border-slate-800">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                    Live Job Settlement
+            {/* Right: Live Settlement Panel */}
+            <div className="lg:col-span-5 space-y-4 sticky top-6">
+              <div className="bg-surface border border-border rounded p-6 space-y-5">
+                <div className="pb-3 border-b border-border flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-ink m-0">
+                    Live settlement progress
                   </h3>
-                  <span className="badge badge-gold font-mono text-[10px]">
-                    {jobSettlement.job_no}
+                  <span className="text-xs text-muted font-mono">
+                    {activeJob ? activeJob.job_no : "—"}
                   </span>
                 </div>
 
-                <div className="space-y-2 text-xs">
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Total Issued Fine Gold:</span>
-                    <GoldNumber value={jobSettlement.settlement.issued_fine_mg} />
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Finished Returned:</span>
-                    <GoldNumber value={jobSettlement.settlement.finished_mg} />
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Scrap Returned:</span>
-                    <GoldNumber value={jobSettlement.settlement.scrap_mg} />
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Filings Returned:</span>
-                    <GoldNumber value={jobSettlement.settlement.filings_mg} />
-                  </div>
-
-                  <div className="pt-2 border-t border-slate-800 flex justify-between font-semibold">
-                    <span className="text-slate-300">Allowed Wastage ({fmtPurity(jobSettlement.wastage_bp)}%):</span>
-                    <GoldNumber value={jobSettlement.settlement.allowed_mg} />
-                  </div>
-
-                  <div className="flex justify-between font-bold pt-1">
-                    <span className="text-yellow-400">Outstanding Fine Balance:</span>
+                {/* This Receipt - Featured figure */}
+                <div className="py-2 text-center border-b border-border space-y-1">
+                  <span className="text-xs text-muted block">
+                    This receipt fine gold
+                  </span>
+                  <div className="flex justify-center">
                     <GoldNumber
-                      value={jobSettlement.settlement.outstanding_mg}
-                      highlight={
-                        jobSettlement.settlement.outstanding_mg > 0
-                          ? "warning"
-                          : "positive"
-                      }
+                      value={previewFineMg}
+                      type="weight"
+                      size="xl"
+                      isKeyBalance
                     />
                   </div>
-
-                  {jobSettlement.settlement.excess_mg > 0 && (
-                    <div className="p-2 rounded bg-rose-950/40 border border-rose-800/80 text-rose-300 flex justify-between">
-                      <span>Excess Loss:</span>
-                      <GoldNumber
-                        value={jobSettlement.settlement.excess_mg}
-                        highlight="negative"
-                      />
-                    </div>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <div className="card-glass p-5 border border-slate-800 text-center text-slate-500 text-xs">
-                Select an active job to monitor live fine-gold return progress.
-              </div>
-            )}
-
-            <PhotoReader
-              mode="scale"
-              currentTypedValue={grossInput}
-              onReadingConfirmed={handlePhotoConfirmed}
-            />
-          </div>
-        </div>
-      )}
-
-      {/* Receipt Slip Modal */}
-      {receiptSlip && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
-          <div className="card-glass w-full max-w-lg p-6 border border-yellow-500/40 relative">
-            <div className="slip-box bg-slate-900 border border-slate-700 p-6 rounded-lg text-slate-100">
-              <div className="flex justify-between items-start border-b border-slate-700 pb-3">
-                <div>
-                  <h3 className="font-bold text-base text-yellow-400">
-                    GOLD RECEIPT VOUCHER
-                  </h3>
-                  <p className="text-xs text-slate-400">Coimbatore Workshop Vault</p>
-                </div>
-                <div className="text-right">
-                  <span className="font-mono text-sm font-bold text-yellow-400 block">
-                    {receiptSlip.txn_id}
-                  </span>
-                  <span className="text-xs text-slate-400 font-mono">
-                    {receiptSlip.entry_date}
+                  <span className="text-xs text-muted font-mono block">
+                    {previewFineMg.toLocaleString()} mg fine gold
                   </span>
                 </div>
-              </div>
 
-              <div className="grid grid-cols-2 gap-4 my-4 text-xs">
-                <div>
-                  <span className="text-slate-400 block">Artisan:</span>
-                  <span className="font-semibold text-slate-200">
-                    {receiptSlip.karigar_name} ({receiptSlip.karigar_code})
-                  </span>
-                </div>
-                <div>
-                  <span className="text-slate-400 block">Work Order:</span>
-                  <span className="font-semibold text-slate-200">
-                    {receiptSlip.job_no}
-                  </span>
-                </div>
-              </div>
-
-              <div className="p-3 rounded bg-slate-950 border border-slate-800 space-y-2 text-xs">
-                <div className="flex justify-between">
-                  <span className="text-slate-400">Classification:</span>
-                  <span className="font-semibold capitalize text-slate-200">
-                    {receiptSlip.kind}
-                  </span>
-                </div>
-                {receiptSlip.huid && (
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Hallmark HUID:</span>
-                    <span className="font-mono font-bold text-yellow-400">
-                      {receiptSlip.huid}
-                    </span>
+                {/* Detailed Settlement Ledger Metrics */}
+                <div className="space-y-2.5 text-xs">
+                  <div className="flex justify-between items-center py-1">
+                    <span className="text-muted">Issued fine weight:</span>
+                    <GoldNumber value={issuedFineMg} type="weight" size="sm" align="right" />
                   </div>
-                )}
-                <div className="flex justify-between">
-                  <span className="text-slate-400">Gross Weight:</span>
-                  <GoldNumber value={receiptSlip.gross_mg} />
+                  <div className="flex justify-between items-center py-1 border-t border-border/40">
+                    <span className="text-muted">Returned so far:</span>
+                    <GoldNumber value={returnedFineMg} type="weight" size="sm" align="right" />
+                  </div>
+                  <div className="flex justify-between items-center py-1 border-t border-border/40">
+                    <span className="text-muted">Outstanding balance:</span>
+                    <GoldNumber value={outstandingAfterMg} type="weight" size="sm" align="right" />
+                  </div>
+                  <div className="flex justify-between items-center py-1 border-t border-border/40">
+                    <span className="text-muted">Allowed wastage ({fmtPurity(activeJob?.wastage_bp || 300)}%):</span>
+                    <GoldNumber value={allowedWastageMg} type="weight" size="sm" align="right" />
+                  </div>
+                  <div className="flex justify-between items-center py-1 border-t border-border/40">
+                    <span className={excessLossMg > 0 ? "text-status-problem font-medium" : "text-muted"}>
+                      Excess loss:
+                    </span>
+                    <GoldNumber
+                      value={excessLossMg}
+                      type="weight"
+                      size="sm"
+                      align="right"
+                      isExcess={excessLossMg > 0}
+                    />
+                  </div>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-400">Tested Purity:</span>
-                  <GoldNumber value={receiptSlip.purity_bp} type="purity" />
-                </div>
-                <div className="flex justify-between pt-2 border-t border-slate-800 font-bold">
-                  <span className="text-yellow-400">Fine Gold Credited:</span>
-                  <GoldNumber
-                    value={receiptSlip.fine_mg}
-                    size="lg"
-                    highlight="gold"
-                  />
+
+                {/* Status Badge */}
+                <div className="pt-3 border-t border-border flex items-center justify-between">
+                  <span className="text-xs text-muted">Settlement status:</span>
+                  <StatusBadge status={settlementStatusText} label={settlementStatusText} />
                 </div>
               </div>
-
-              <div className="mt-8 pt-4 border-t border-slate-700 grid grid-cols-2 gap-4 text-center text-xs text-slate-400">
-                <div className="border-t border-dashed border-slate-600 pt-1">
-                  Vault Custodian
-                </div>
-                <div className="border-t border-dashed border-slate-600 pt-1">
-                  Artisan Signature
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-5 flex justify-end gap-3 no-print">
-              <button
-                type="button"
-                onClick={() => setReceiptSlip(null)}
-                className="btn-secondary text-xs"
-              >
-                Close
-              </button>
-              <button
-                type="button"
-                onClick={() => window.print()}
-                className="btn-gold text-xs"
-              >
-                <Printer className="w-3.5 h-3.5" />
-                Print Voucher Slip
-              </button>
             </div>
           </div>
         </div>
