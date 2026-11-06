@@ -1,22 +1,19 @@
 import React, { useState, useEffect } from "react";
-import {
-  SendHorizontal,
-  Printer,
-  FileCheck2,
-  AlertTriangle,
-  RotateCcw,
-  Sparkles,
-  ChevronDown,
-} from "lucide-react";
+import { Printer, CheckCircle2 } from "lucide-react";
 import AppShell from "../components/layout/AppShell";
+import PageHeader from "../components/ui/PageHeader";
+import Field from "../components/ui/Field";
+import Button from "../components/ui/Button";
 import GoldNumber from "../components/GoldNumber";
 import PhotoReader from "../components/PhotoReader";
 import LoadingState from "../components/LoadingState";
 import ErrorState from "../components/ErrorState";
+import EmptyState from "../components/EmptyState";
 import { api } from "../lib/api";
 import {
   fmtG,
   fmtPurity,
+  fmtDate,
   parseG,
   parsePurity,
   calcFineMg,
@@ -32,6 +29,9 @@ export default function IssueEntry() {
   const [karigarId, setKarigarId] = useState("");
   const [jobs, setJobs] = useState([]);
   const [selectedJobId, setSelectedJobId] = useState("");
+  const [currentBalanceMg, setCurrentBalanceMg] = useState(0);
+
+  // Inline Job Creation State
   const [newJobMode, setNewJobMode] = useState(false);
   const [newJobNo, setNewJobNo] = useState("");
   const [newJobCategory, setNewJobCategory] = useState("");
@@ -44,20 +44,15 @@ export default function IssueEntry() {
   );
   const [note, setNote] = useState("");
   const [confirmedReadingId, setConfirmedReadingId] = useState(null);
+  const [isMismatchBlocked, setIsMismatchBlocked] = useState(false);
 
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState(null);
 
-  // Success Slip Modal
-  const [issuedSlip, setIssuedSlip] = useState(null);
+  // Quiet persistent success confirmation
+  const [savedSuccess, setSavedSuccess] = useState(null);
 
-  // Void modal state
-  const [voidIssueId, setVoidIssueId] = useState(null);
-  const [voidReason, setVoidReason] = useState("");
-  const [voiding, setVoiding] = useState(false);
-  const [voidError, setVoidError] = useState(null);
-
-  // Fetch initial master data
+  // Load karigars and categories
   const fetchMasters = async () => {
     try {
       setLoading(true);
@@ -69,10 +64,10 @@ export default function IssueEntry() {
       setKarigars(kList);
       setCategories(cList);
       if (kList.length > 0) {
-        setKarigarId(kList[0].id.toString());
+        setKarigarId(String(kList[0].id));
       }
     } catch (err) {
-      setError(err.message || "Failed to load form data");
+      setError(err.message || "Failed to load master records");
     } finally {
       setLoading(false);
     }
@@ -82,28 +77,37 @@ export default function IssueEntry() {
     fetchMasters();
   }, []);
 
-  // When karigar changes, fetch their jobs
+  // When karigar changes, fetch their open jobs and current running balance
   useEffect(() => {
     if (!karigarId) return;
-    const loadJobs = async () => {
+
+    const loadKarigarContext = async () => {
       try {
-        const jList = await api.getKarigarJobs(karigarId, true);
+        const [jList, balResult] = await Promise.all([
+          api.getKarigarJobs(karigarId, true),
+          api.getKarigarBalance(karigarId),
+        ]);
+
         setJobs(jList);
+        setCurrentBalanceMg(balResult.total_fine_balance_mg ?? 0);
+
         if (jList.length > 0) {
-          setSelectedJobId(jList[0].id.toString());
+          setSelectedJobId(String(jList[0].id));
           setNewJobMode(false);
         } else {
-          setNewJobMode(true);
           setSelectedJobId("");
+          setNewJobMode(false);
         }
       } catch {
         setJobs([]);
+        setCurrentBalanceMg(0);
       }
     };
-    loadJobs();
+
+    loadKarigarContext();
   }, [karigarId]);
 
-  // Client-side fine weight preview
+  // Client-side fine weight calculation
   let previewGrossMg = 0;
   let previewPurityBp = 0;
   let previewFineMg = 0;
@@ -114,7 +118,7 @@ export default function IssueEntry() {
       previewFineMg = calcFineMg(previewGrossMg, previewPurityBp);
     }
   } catch {
-    // Keep 0 for preview on invalid syntax
+    // Zero on incomplete input
   }
 
   const handlePhotoConfirmed = ({ readingId, valueStr }) => {
@@ -125,6 +129,11 @@ export default function IssueEntry() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setFormError(null);
+
+    if (isMismatchBlocked) {
+      setFormError("Cannot submit while entered weight differs from confirmed instrument photo reading.");
+      return;
+    }
 
     let gMg, pBp;
     try {
@@ -139,15 +148,13 @@ export default function IssueEntry() {
     try {
       let targetJobId = selectedJobId;
 
-      // If creating new job inline
       if (newJobMode) {
         if (!newJobNo.trim()) throw new Error("Job number is required");
-        if (!newJobCategory) throw new Error("Please select an item category");
+        if (!newJobCategory) throw new Error("Item category is required");
 
-        // Fetch agreed wastage for this category or default
         const wastages = await api.getKarigarWastages(karigarId);
         const match = wastages.find((w) => w.category_id === Number(newJobCategory));
-        const agreedBp = match ? match.wastage_bp : 300; // default 3.00%
+        const agreedBp = match ? match.wastage_bp : 300;
 
         const createdJob = await api.createJob({
           karigar_id: Number(karigarId),
@@ -158,6 +165,10 @@ export default function IssueEntry() {
           opened_on: entryDate,
         });
         targetJobId = createdJob.id;
+      }
+
+      if (!targetJobId) {
+        throw new Error("An open job must be selected or created to issue gold.");
       }
 
       const issuePayload = {
@@ -171,25 +182,30 @@ export default function IssueEntry() {
 
       const result = await api.createIssue(issuePayload);
 
-      // Selected karigar info
       const selectedKarigar = karigars.find((k) => k.id === Number(karigarId));
+      const activeJobNo = newJobMode
+        ? newJobNo.trim()
+        : jobs.find((j) => j.id === Number(targetJobId))?.job_no || `JOB-${targetJobId}`;
 
-      setIssuedSlip({
+      setSavedSuccess({
         txn_id: result.txn_id,
         karigar_name: selectedKarigar?.name,
         karigar_code: selectedKarigar?.code,
-        job_no: newJobMode ? newJobNo : jobs.find((j) => j.id === Number(targetJobId))?.job_no,
+        job_no: activeJobNo,
+        fine_mg: result.fine_mg,
         gross_mg: result.gross_mg,
         purity_bp: result.purity_bp,
-        fine_mg: result.fine_mg,
-        entry_date: result.entry_date,
-        note: result.note,
       });
 
-      // Reset form
+      // Update balance
+      setCurrentBalanceMg((prev) => prev + result.fine_mg);
+
+      // Reset form fields
       setGrossInput("");
       setNote("");
+      setConfirmedReadingId(null);
       if (newJobMode) {
+        setNewJobMode(false);
         setNewJobNo("");
         setNewJobDesc("");
       }
@@ -200,47 +216,70 @@ export default function IssueEntry() {
     }
   };
 
-  const handlePrintSlip = () => {
-    window.print();
-  };
+  const activeJob = jobs.find((j) => j.id === Number(selectedJobId));
+  const activeJobNumber = newJobMode
+    ? newJobNo.trim() || "New Job Order"
+    : activeJob
+    ? activeJob.job_no
+    : "—";
 
   return (
-    <AppShell
-      title="Gold Issue Entry"
-      subtitle="Issue bullion or alloyed gold bar stock to an artisan workbench"
-    >
-      {loading ? (
-        <LoadingState message="Loading issue entry configuration..." />
-      ) : error ? (
-        <ErrorState message={error} onRetry={fetchMasters} />
-      ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Main Issue Form */}
-          <div className="lg:col-span-2 space-y-6">
-            <div className="card-glass p-6">
-              <h2 className="text-base font-bold text-slate-100 flex items-center gap-2 pb-4 border-b border-slate-800">
-                <SendHorizontal className="w-5 h-5 text-yellow-400" />
-                Record Vault-to-Karigar Issue
-              </h2>
+    <AppShell>
+      <PageHeader
+        title="Issue gold"
+        description="Issue raw bullion or alloyed bar stock to an artisan workbench"
+      />
 
+      {loading ? (
+        <LoadingState count={5} />
+      ) : error ? (
+        <ErrorState error={error} onRetry={fetchMasters} />
+      ) : (
+        <div className="space-y-6">
+          {/* Quiet persistent success confirmation */}
+          {savedSuccess && (
+            <div className="p-4 rounded border border-status-ok/20 bg-status-ok-tint flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-2 text-sm text-status-ok font-medium">
+                <CheckCircle2 className="w-4 h-4 shrink-0 stroke-[2]" />
+                <span>
+                  Issue {savedSuccess.txn_id} saved for {savedSuccess.karigar_name} ({savedSuccess.karigar_code})
+                </span>
+              </div>
+              <Button
+                variant="secondary"
+                size="sm"
+                icon={Printer}
+                onClick={() => window.print()}
+              >
+                Print slip
+              </Button>
+            </div>
+          )}
+
+          {/* Two-column layout on desktop: Left Form (max 480px), Right Slip Preview */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+            {/* Left: Form */}
+            <div className="lg:col-span-7 space-y-6 max-w-[480px]">
               {formError && (
-                <div className="mt-4 p-3 rounded-lg bg-rose-950/40 border border-rose-800 text-rose-300 text-xs flex items-center gap-2">
-                  <AlertTriangle className="w-4 h-4 shrink-0" />
-                  <span>{formError}</span>
-                </div>
+                <ErrorState
+                  error={formError}
+                  title="Issue submission blocked"
+                  message={formError}
+                />
               )}
 
-              <form onSubmit={handleSubmit} className="mt-5 space-y-4">
-                {/* 1. Karigar Selector */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                      Assigned Karigar
+              <form onSubmit={handleSubmit} className="space-y-5">
+                {/* Karigar & Date */}
+                <div className="space-y-4">
+                  <div className="space-y-1.5">
+                    <label htmlFor="karigar" className="block text-sm font-medium text-ink">
+                      Karigar <span className="text-status-problem">*</span>
                     </label>
                     <select
+                      id="karigar"
                       value={karigarId}
                       onChange={(e) => setKarigarId(e.target.value)}
-                      className="input-base"
+                      className="w-full h-11 px-3 bg-surface border border-border rounded text-sm text-ink outline-none focus:border-bronze focus:ring-2 focus:ring-bronze/20"
                     >
                       {karigars.map((k) => (
                         <option key={k.id} value={k.id}>
@@ -250,76 +289,89 @@ export default function IssueEntry() {
                     </select>
                   </div>
 
-                  {/* Date Input */}
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                      Issue Date
+                  <div className="space-y-1.5">
+                    <label htmlFor="entryDate" className="block text-sm font-medium text-ink">
+                      Issue date
                     </label>
                     <input
+                      id="entryDate"
                       type="date"
-                      required
                       value={entryDate}
                       onChange={(e) => setEntryDate(e.target.value)}
-                      className="input-base"
+                      className="w-full h-11 px-3 bg-surface border border-border rounded text-sm text-ink outline-none focus:border-bronze focus:ring-2 focus:ring-bronze/20"
                     />
+                    <p className="text-xs text-muted mt-1">
+                      Scheduled date: {fmtDate(entryDate)} (Asia/Kolkata)
+                    </p>
                   </div>
                 </div>
 
-                {/* 2. Job Selection / Creation */}
-                <div className="p-4 rounded-lg bg-slate-900 border border-slate-800 space-y-3">
+                {/* Job Selection / Inline creation */}
+                <div className="pt-2 border-t border-border space-y-3">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-slate-200">
-                      Work Order / Job
+                    <span className="text-sm font-medium text-ink">
+                      Job order
                     </span>
                     <button
                       type="button"
                       onClick={() => setNewJobMode(!newJobMode)}
-                      className="text-xs text-yellow-400 hover:underline flex items-center gap-1"
+                      className="text-xs text-bronze hover:underline p-0 m-0 bg-transparent border-none cursor-pointer font-medium"
                     >
-                      {newJobMode ? "Select Existing Job" : "+ Create New Job"}
+                      {newJobMode ? "Select existing job" : "+ Create new job"}
                     </button>
                   </div>
 
                   {!newJobMode ? (
-                    <div>
-                      {jobs.length > 0 ? (
+                    jobs.length > 0 ? (
+                      <div className="space-y-1.5">
                         <select
+                          id="jobSelect"
                           value={selectedJobId}
                           onChange={(e) => setSelectedJobId(e.target.value)}
-                          className="input-base text-xs"
+                          className="w-full h-11 px-3 bg-surface border border-border rounded text-sm text-ink outline-none focus:border-bronze focus:ring-2 focus:ring-bronze/20"
                         >
                           {jobs.map((j) => (
                             <option key={j.id} value={j.id}>
-                              {j.job_no} — {j.description || "Ornament"} (Wastage: {fmtPurity(j.wastage_bp)}%)
+                              {j.job_no} — {j.description || "Ornament"} (Agreed wastage: {fmtPurity(j.wastage_bp)}%)
                             </option>
                           ))}
                         </select>
-                      ) : (
-                        <p className="text-xs text-amber-400/90 italic">
-                          No active open jobs for this artisan. Please create a new job below.
+                        <p className="text-xs text-muted">
+                          Showing open production runs for this artisan
                         </p>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
-                      <div>
-                        <input
-                          type="text"
-                          required={newJobMode}
-                          placeholder="Job No (e.g. JOB-801)"
-                          value={newJobNo}
-                          onChange={(e) => setNewJobNo(e.target.value)}
-                          className="input-base text-xs font-mono"
-                        />
                       </div>
-                      <div>
+                    ) : (
+                      <EmptyState
+                        title="No active open jobs"
+                        description="This karigar has no open job orders. Create a job order to issue gold."
+                        actionText="Create job order"
+                        onAction={() => setNewJobMode(true)}
+                      />
+                    )
+                  ) : (
+                    <div className="p-4 border border-border rounded bg-surface space-y-3">
+                      <div className="text-xs font-semibold text-ink">
+                        New job order details
+                      </div>
+                      <Field
+                        label="Job number"
+                        id="newJobNo"
+                        placeholder="e.g. JOB-2026-002"
+                        required
+                        value={newJobNo}
+                        onChange={(e) => setNewJobNo(e.target.value)}
+                      />
+                      <div className="space-y-1.5">
+                        <label htmlFor="newJobCategory" className="block text-sm font-medium text-ink">
+                          Category <span className="text-status-problem">*</span>
+                        </label>
                         <select
-                          required={newJobMode}
+                          id="newJobCategory"
                           value={newJobCategory}
                           onChange={(e) => setNewJobCategory(e.target.value)}
-                          className="input-base text-xs"
+                          className="w-full h-11 px-3 bg-surface border border-border rounded text-sm text-ink outline-none focus:border-bronze focus:ring-2 focus:ring-bronze/20"
                         >
-                          <option value="">Select Category</option>
+                          <option value="">Select category</option>
                           {categories.map((c) => (
                             <option key={c.id} value={c.id}>
                               {c.name}
@@ -327,227 +379,154 @@ export default function IssueEntry() {
                           ))}
                         </select>
                       </div>
-                      <div>
-                        <input
-                          type="text"
-                          placeholder="Description (e.g. 22K Bangle)"
-                          value={newJobDesc}
-                          onChange={(e) => setNewJobDesc(e.target.value)}
-                          className="input-base text-xs"
-                        />
-                      </div>
+                      <Field
+                        label="Description"
+                        id="newJobDesc"
+                        placeholder="e.g. 22K Traditional Bridal Necklace"
+                        value={newJobDesc}
+                        onChange={(e) => setNewJobDesc(e.target.value)}
+                      />
                     </div>
                   )}
                 </div>
 
-                {/* 3. Weight and Purity Inputs */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                      Gross Weight (Grams)
-                    </label>
-                    <div className="relative">
-                      <input
-                        type="text"
-                        required
-                        placeholder="112.450"
-                        value={grossInput}
-                        onChange={(e) => setGrossInput(e.target.value)}
-                        className="input-base font-mono text-base pr-8"
-                      />
-                      <span className="absolute right-3 top-2.5 text-xs text-slate-500 font-mono">
-                        g
-                      </span>
-                    </div>
-                    <span className="text-[11px] text-slate-500 mt-1 block">
-                      Exactly up to 3 decimal places (integer milligrams)
-                    </span>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                      Purity (% Gold)
-                    </label>
-                    <div className="relative">
-                      <input
-                        type="text"
-                        required
-                        placeholder="91.60"
-                        value={purityInput}
-                        onChange={(e) => setPurityInput(e.target.value)}
-                        className="input-base font-mono text-base pr-8"
-                      />
-                      <span className="absolute right-3 top-2.5 text-xs text-slate-500 font-mono">
-                        %
-                      </span>
-                    </div>
-                    <span className="text-[11px] text-slate-500 mt-1 block">
-                      Standard: 91.60% (22K) or 99.90% (24K bullion)
-                    </span>
-                  </div>
-                </div>
-
-                {/* Live Mathematical Settlement Calculation Card */}
-                <div className="p-4 rounded-lg bg-yellow-500/10 border border-yellow-500/20 flex items-center justify-between">
-                  <div>
-                    <span className="text-xs font-medium text-slate-400 block">
-                      Calculated Fine Weight (Pure Gold)
-                    </span>
-                    <span className="text-[11px] text-slate-500">
-                      Half-up integer formula: (gross_mg × purity_bp + 5000) // 10000
-                    </span>
-                  </div>
-                  <div className="text-right">
-                    <GoldNumber
-                      value={previewFineMg}
-                      size="xl"
-                      highlight="gold"
-                    />
-                    <span className="text-[11px] text-slate-400 block font-mono">
-                      {previewFineMg.toLocaleString()} mg pure
-                    </span>
-                  </div>
-                </div>
-
-                {/* Note */}
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                    Internal Note / Slip Remarks (Optional)
-                  </label>
-                  <input
+                {/* Weight & Purity */}
+                <div className="pt-2 border-t border-border space-y-4">
+                  <Field
+                    label="Gross weight"
+                    id="grossWeight"
                     type="text"
-                    placeholder="e.g. 24K casting grain from vault box #2"
+                    required
+                    placeholder="112.450"
+                    value={grossInput}
+                    onChange={(e) => setGrossInput(e.target.value)}
+                    helperText="Input in grams up to 3 decimals (e.g. 112.450)"
+                  />
+
+                  <Field
+                    label="Purity"
+                    id="purity"
+                    type="text"
+                    required
+                    placeholder="91.60"
+                    value={purityInput}
+                    onChange={(e) => setPurityInput(e.target.value)}
+                    helperText="Standard purity: 91.60% (22K) or 99.90% (24K)"
+                  />
+
+                  <Field
+                    label="Remarks (optional)"
+                    id="note"
+                    placeholder="e.g. Casting grain from vault bar #4"
                     value={note}
                     onChange={(e) => setNote(e.target.value)}
-                    className="input-base text-xs"
                   />
                 </div>
 
-                {/* Submit */}
-                <div className="pt-2">
-                  <button
+                {/* Photo Reader assist */}
+                <div className="pt-2 border-t border-border">
+                  <PhotoReader
+                    mode="scale"
+                    currentTypedValue={grossInput}
+                    onReadingConfirmed={handlePhotoConfirmed}
+                    onMismatchStateChange={setIsMismatchBlocked}
+                  />
+                </div>
+
+                {/* Submit button */}
+                <div className="pt-4">
+                  <Button
                     type="submit"
-                    disabled={submitting || previewFineMg <= 0}
-                    className="w-full btn-gold py-2.5"
+                    variant="primary"
+                    size="lg"
+                    loading={submitting}
+                    disabled={previewFineMg <= 0 || (!selectedJobId && !newJobMode) || isMismatchBlocked}
+                    disabledReason={
+                      isMismatchBlocked
+                        ? "Save blocked: entered weight must match confirmed photo reading."
+                        : previewFineMg <= 0
+                        ? "Enter valid gross weight and purity to calculate fine gold."
+                        : !selectedJobId && !newJobMode
+                        ? "Please select or create an open job order."
+                        : ""
+                    }
+                    className="w-full"
                   >
-                    {submitting ? "Writing to Ledger..." : "Authorize & Issue Gold"}
-                  </button>
+                    Authorize and issue gold
+                  </Button>
                 </div>
               </form>
             </div>
-          </div>
 
-          {/* Scale Photo Reader Sidecar */}
-          <div className="space-y-6">
-            <PhotoReader
-              mode="scale"
-              currentTypedValue={grossInput}
-              onReadingConfirmed={handlePhotoConfirmed}
-            />
-
-            <div className="card-glass p-5 border border-slate-800">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">
-                Workshop Standard Practice
-              </h3>
-              <ul className="text-xs text-slate-400 space-y-2 list-disc list-inside">
-                <li>All issues increment the karigar's running fine-gold liability.</li>
-                <li>Digital scale reads can be auto-verified via camera above.</li>
-                <li>Printed voucher TX-XXXXX must be counter-signed by the artisan.</li>
-                <li>Ledger entries are append-only and cannot be edited.</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Slip Modal / Printable Voucher */}
-      {issuedSlip && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
-          <div className="card-glass w-full max-w-lg p-6 border border-yellow-500/40 relative">
-            <div className="slip-box bg-slate-900 border border-slate-700 p-6 rounded-lg text-slate-100">
-              <div className="flex justify-between items-start border-b border-slate-700 pb-3">
-                <div>
-                  <h3 className="font-bold text-base text-yellow-400">
-                    GOLD ISSUE VOUCHER
+            {/* Right: Live Slip Preview Panel */}
+            <div className="lg:col-span-5 space-y-4 sticky top-6">
+              <div className="bg-surface border border-border rounded p-6 space-y-5">
+                <div className="pb-3 border-b border-border flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-ink m-0">
+                    Slip preview
                   </h3>
-                  <p className="text-xs text-slate-400">Coimbatore Workshop</p>
-                </div>
-                <div className="text-right">
-                  <span className="font-mono text-sm font-bold text-yellow-400 block">
-                    {issuedSlip.txn_id}
-                  </span>
-                  <span className="text-xs text-slate-400 font-mono">
-                    {issuedSlip.entry_date}
+                  <span className="text-xs text-muted font-mono">
+                    {activeJobNumber}
                   </span>
                 </div>
-              </div>
 
-              <div className="grid grid-cols-2 gap-4 my-4 text-xs">
-                <div>
-                  <span className="text-slate-400 block">Artisan:</span>
-                  <span className="font-semibold text-slate-200">
-                    {issuedSlip.karigar_name} ({issuedSlip.karigar_code})
+                {/* Fine Weight - Largest figure */}
+                <div className="py-2 text-center border-b border-border space-y-1">
+                  <span className="text-xs text-muted block">
+                    Calculated fine weight
+                  </span>
+                  <div className="flex justify-center">
+                    <GoldNumber
+                      value={previewFineMg}
+                      type="weight"
+                      size="xl"
+                      isKeyBalance
+                    />
+                  </div>
+                  <span className="text-xs text-muted font-mono block">
+                    {previewFineMg.toLocaleString()} mg pure gold
                   </span>
                 </div>
-                <div>
-                  <span className="text-slate-400 block">Job Reference:</span>
-                  <span className="font-semibold text-slate-200">
-                    {issuedSlip.job_no || "General Workshop"}
-                  </span>
+
+                {/* Weight and Purity details */}
+                <div className="grid grid-cols-2 gap-4 text-xs py-1 border-b border-border">
+                  <div>
+                    <span className="text-muted block">Gross weight:</span>
+                    <GoldNumber value={previewGrossMg} type="weight" size="sm" />
+                  </div>
+                  <div>
+                    <span className="text-muted block">Purity:</span>
+                    <GoldNumber value={previewPurityBp} type="purity" size="sm" />
+                  </div>
+                </div>
+
+                {/* Karigar Running Balance Before and After */}
+                <div className="space-y-2 pt-1 text-xs">
+                  <div className="flex justify-between items-center py-1">
+                    <span className="text-muted">Karigar balance before:</span>
+                    <GoldNumber
+                      value={currentBalanceMg}
+                      type="weight"
+                      size="sm"
+                      align="right"
+                    />
+                  </div>
+                  <div className="flex justify-between items-center py-1 border-t border-border/60">
+                    <span className="text-ink font-medium">Balance after this issue:</span>
+                    <GoldNumber
+                      value={currentBalanceMg + previewFineMg}
+                      type="weight"
+                      size="sm"
+                      align="right"
+                      className="font-semibold"
+                    />
+                  </div>
+                </div>
+
+                <div className="pt-2 text-[11px] text-muted border-t border-border leading-relaxed">
+                  Formula: (gross_mg × purity_bp + 5000) // 10000. All entries are immutable in the ledger.
                 </div>
               </div>
-
-              <div className="p-3 rounded bg-slate-950 border border-slate-800 space-y-2 text-xs">
-                <div className="flex justify-between">
-                  <span className="text-slate-400">Gross Weight:</span>
-                  <GoldNumber value={issuedSlip.gross_mg} />
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-400">Tested Purity:</span>
-                  <GoldNumber value={issuedSlip.purity_bp} type="purity" />
-                </div>
-                <div className="flex justify-between pt-2 border-t border-slate-800 font-bold">
-                  <span className="text-yellow-400">Fine Gold Issued:</span>
-                  <GoldNumber
-                    value={issuedSlip.fine_mg}
-                    size="lg"
-                    highlight="gold"
-                  />
-                </div>
-              </div>
-
-              {issuedSlip.note && (
-                <p className="text-[11px] text-slate-400 mt-3 italic">
-                  Note: {issuedSlip.note}
-                </p>
-              )}
-
-              <div className="mt-8 pt-4 border-t border-slate-700 grid grid-cols-2 gap-4 text-center text-xs text-slate-400">
-                <div className="border-t border-dashed border-slate-600 pt-1">
-                  Issue Clerk Signature
-                </div>
-                <div className="border-t border-dashed border-slate-600 pt-1">
-                  Karigar Signature
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-5 flex justify-end gap-3 no-print">
-              <button
-                type="button"
-                onClick={() => setIssuedSlip(null)}
-                className="btn-secondary text-xs"
-              >
-                Close
-              </button>
-              <button
-                type="button"
-                onClick={handlePrintSlip}
-                className="btn-gold text-xs"
-              >
-                <Printer className="w-3.5 h-3.5" />
-                Print Voucher Slip
-              </button>
             </div>
           </div>
         </div>

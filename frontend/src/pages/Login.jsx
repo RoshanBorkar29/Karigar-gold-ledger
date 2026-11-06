@@ -1,8 +1,15 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Coins, Lock, Mail, ArrowRight, ShieldCheck, UserCheck } from "lucide-react";
 import { useAuth } from "../lib/auth";
+import Field from "../components/ui/Field";
+import Button from "../components/ui/Button";
+import ErrorState from "../components/ErrorState";
 
+/**
+ * Clean, calm login screen.
+ * Centred 360px panel, product name, email & password fields, one primary button.
+ * Prefills email only for demo buttons.
+ */
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -31,118 +38,93 @@ export default function Login() {
     }
   };
 
-  const handleQuickLogin = (quickEmail) => {
-    setEmail(quickEmail);
+  const handleQuickFill = (demoEmail) => {
+    setEmail(demoEmail);
     setPassword("");
+    setError(null);
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 flex flex-col justify-center items-center px-4 relative overflow-hidden">
-      {/* Background gold glow accent */}
-      <div className="absolute w-96 h-96 bg-yellow-500/10 rounded-full blur-3xl -top-20 -left-20 pointer-events-none" />
-      <div className="absolute w-96 h-96 bg-amber-600/10 rounded-full blur-3xl -bottom-20 -right-20 pointer-events-none" />
-
-      <div className="w-full max-w-md card-glass p-8 border border-slate-800 relative z-10">
-        <div className="flex flex-col items-center text-center">
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-amber-500 to-yellow-300 flex items-center justify-center text-slate-950 shadow-xl mb-4 gold-glow">
-            <Coins className="w-8 h-8" />
-          </div>
-          <h2 className="text-2xl font-bold text-slate-100 tracking-tight">
-            Karigar Gold Ledger
-          </h2>
-          <p className="text-xs text-slate-400 mt-1 max-w-xs">
-            Workshop Fine-Gold Tracking & Old-Gold Compliance Desk
+    <div className="min-h-screen bg-background flex flex-col justify-center items-center p-4 antialiased">
+      <div className="w-full max-w-[360px] bg-surface border border-border rounded p-8">
+        <div className="text-center pb-6 border-b border-border">
+          <h1 className="text-xl font-semibold text-ink tracking-tight m-0">
+            Karigar Ledger
+          </h1>
+          <p className="text-xs text-muted mt-1 m-0">
+            Precision jewellery workshop ledger
           </p>
         </div>
 
         {error && (
-          <div className="mt-5 p-3 rounded-lg bg-rose-950/40 border border-rose-800 text-rose-300 text-xs">
-            {error}
-          </div>
+          <ErrorState
+            error={error}
+            title="Sign in failed"
+            message={error}
+            className="my-4"
+          />
         )}
 
         <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-          <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-              Email Address
-            </label>
-            <div className="relative">
-              <Mail className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="clerk@workshop.local"
-                className="input-base pl-9"
-              />
-            </div>
-          </div>
+          <Field
+            label="Email"
+            id="email"
+            type="email"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="clerk@workshop.local"
+          />
 
-          <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-              Password
-            </label>
-            <div className="relative">
-              <Lock className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
-              <input
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                className="input-base pl-9"
-              />
-            </div>
-          </div>
+          <Field
+            label="Password"
+            id="password"
+            type="password"
+            required
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Enter password"
+          />
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full btn-gold py-2.5 mt-2"
-          >
-            {loading ? "Authenticating..." : "Sign In to Workshop"}
-            <ArrowRight className="w-4 h-4 ml-1" />
-          </button>
+          <div className="pt-2">
+            <Button
+              type="submit"
+              variant="primary"
+              loading={loading}
+              className="w-full"
+            >
+              Sign in
+            </Button>
+          </div>
         </form>
 
-        {/* Demo Fast Login Buttons */}
-        <div className="mt-8 pt-6 border-t border-slate-800">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 text-center mb-1">
-            Prefill Demo Account
-          </p>
-          <p className="text-[10px] text-slate-600 text-center mb-3">
-            (Passwords documented in deployment.md)
-          </p>
+        {/* Demo Fast Account Selection */}
+        <div className="mt-8 pt-6 border-t border-border">
+          <div className="text-xs text-muted font-normal mb-3 text-center">
+            Prefill demo account (email only)
+          </div>
           <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
-              onClick={() => handleQuickLogin("clerk@workshop.local")}
-              className="p-2.5 rounded-lg border border-slate-800 bg-slate-900/60 hover:border-slate-700 text-left transition"
+              onClick={() => handleQuickFill("clerk@workshop.local")}
+              className="p-2.5 rounded border border-border bg-background hover:border-bronze text-left transition cursor-pointer"
             >
-              <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-200">
-                <UserCheck className="w-3.5 h-3.5 text-slate-400" />
-                Issue Clerk
-              </div>
-              <p className="text-[10px] text-slate-500 mt-0.5 truncate">
-                clerk@workshop.local
-              </p>
+              <div className="text-xs font-medium text-ink">Issue Clerk</div>
+              <div className="text-[11px] text-muted truncate mt-0.5">clerk@workshop.local</div>
             </button>
 
             <button
               type="button"
-              onClick={() => handleQuickLogin("finance@workshop.local")}
-              className="p-2.5 rounded-lg border border-slate-800 bg-slate-900/60 hover:border-yellow-500/40 text-left transition"
+              onClick={() => handleQuickFill("finance@workshop.local")}
+              className="p-2.5 rounded border border-border bg-background hover:border-bronze text-left transition cursor-pointer"
             >
-              <div className="flex items-center gap-1.5 text-xs font-semibold text-yellow-400">
-                <ShieldCheck className="w-3.5 h-3.5" />
-                Finance Head
-              </div>
-              <p className="text-[10px] text-slate-500 mt-0.5 truncate">
-                finance@workshop.local
-              </p>
+              <div className="text-xs font-medium text-ink">Finance Head</div>
+              <div className="text-[11px] text-muted truncate mt-0.5">finance@workshop.local</div>
             </button>
           </div>
+          <p className="text-[11px] text-muted text-center mt-3 m-0">
+            Demo passwords are documented in deployment.md
+          </p>
         </div>
       </div>
     </div>

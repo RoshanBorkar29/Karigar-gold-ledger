@@ -1,18 +1,29 @@
 import React, { useState } from "react";
-import { Camera, CheckCircle2, AlertCircle, RefreshCw, Upload, Eye } from "lucide-react";
+import { Camera, Upload, AlertTriangle } from "lucide-react";
 import { api } from "../lib/api";
+import GoldNumber from "./GoldNumber";
+import Button from "./ui/Button";
 
+/**
+ * Standard PhotoReader component.
+ * Photo on the left, AI reading on the right as a large GoldNumber (24px).
+ * Confidence label in words: "High" / "Medium" / "Low".
+ * Two clear buttons: "Use this reading" and "Enter manually".
+ * Visible blocking message when typed value differs with values side-by-side.
+ * Calm fallback notice when AI reading is unavailable: "Photo reading is not available. Enter the weight manually."
+ */
 export default function PhotoReader({
   mode = "scale", // "scale" | "karat"
   currentTypedValue = "",
   onReadingConfirmed,
+  onMismatchStateChange = () => {},
 }) {
   const [loading, setLoading] = useState(false);
   const [imagePreview, setImagePreview] = useState(null);
   const [reading, setReading] = useState(null);
+  const [manualMode, setManualMode] = useState(false);
   const [manualValue, setManualValue] = useState("");
   const [error, setError] = useState(null);
-  const [mismatchWarning, setMismatchWarning] = useState(false);
 
   const isScale = mode === "scale";
 
@@ -22,8 +33,8 @@ export default function PhotoReader({
 
     setError(null);
     setReading(null);
+    setManualMode(false);
     setManualValue("");
-    setMismatchWarning(false);
     setLoading(true);
 
     try {
@@ -37,86 +48,113 @@ export default function PhotoReader({
       }
       setReading(result);
 
+      // Check mismatch
       const aiVal = isScale ? result.value_text : result.purity_text;
-      if (result.readable && aiVal && currentTypedValue && currentTypedValue.trim() !== "") {
-        if (aiVal.trim() !== currentTypedValue.trim()) {
-          setMismatchWarning(true);
-        }
-      }
+      const isMismatch = Boolean(
+        result.readable &&
+        aiVal &&
+        currentTypedValue &&
+        currentTypedValue.trim() !== "" &&
+        aiVal.trim() !== currentTypedValue.trim()
+      );
+      onMismatchStateChange(isMismatch);
     } catch (err) {
-      setError(err.message || "Failed to analyze photo");
+      setError(err.message || "Unable to process photo readout");
+      onMismatchStateChange(false);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleApplyExtractedValue = async (overrideMismatch = false) => {
+  const handleUseReading = async () => {
     if (!reading) return;
     const extractedVal = isScale ? reading.value_text : reading.purity_text;
     if (!extractedVal) return;
 
     try {
       setLoading(true);
-      await api.confirmReading(reading.reading_id, extractedVal, overrideMismatch);
-
+      await api.confirmReading(reading.reading_id, extractedVal, false);
       if (onReadingConfirmed) {
         onReadingConfirmed({
           readingId: reading.reading_id,
           valueStr: extractedVal,
         });
       }
-      setMismatchWarning(false);
+      onMismatchStateChange(false);
     } catch (err) {
-      setError(err.message || "Confirmation failed");
+      setError(err.message || "Failed to confirm reading");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleApplyManualValue = async () => {
-    if (!reading || !manualValue.trim()) return;
+  const handleEnterManually = () => {
+    setManualMode(true);
+    setManualValue(currentTypedValue || "");
+  };
+
+  const handleConfirmManual = async () => {
+    if (!manualValue.trim()) return;
 
     try {
       setLoading(true);
-      await api.confirmReading(reading.reading_id, manualValue.trim(), true);
-
+      if (reading) {
+        await api.confirmReading(reading.reading_id, manualValue.trim(), true);
+      }
       if (onReadingConfirmed) {
         onReadingConfirmed({
-          readingId: reading.reading_id,
+          readingId: reading ? reading.reading_id : null,
           valueStr: manualValue.trim(),
         });
       }
+      onMismatchStateChange(false);
+      setManualMode(false);
     } catch (err) {
-      setError(err.message || "Failed to confirm manual entry");
+      setError(err.message || "Failed to apply manual value");
     } finally {
       setLoading(false);
     }
   };
 
-  const isFallback = reading && (reading.fallback === "manual" || !reading.readable);
+  const aiValue = reading ? (isScale ? reading.value_text : reading.purity_text) : null;
+  const isFallback = reading && (!reading.readable || reading.fallback === "manual");
+  const isMismatch = Boolean(
+    reading &&
+    reading.readable &&
+    aiValue &&
+    currentTypedValue &&
+    currentTypedValue.trim() !== "" &&
+    aiValue.trim() !== currentTypedValue.trim()
+  );
+
+  const confidenceWord = reading?.confidence
+    ? reading.confidence >= 80
+      ? "High"
+      : reading.confidence >= 50
+      ? "Medium"
+      : "Low"
+    : "Medium";
 
   return (
-    <div className="card-glass p-4 border border-slate-700/80 bg-slate-900/60 rounded-lg">
-      <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+    <div className="bg-surface border border-border rounded p-4 space-y-4">
+      {/* Component Title */}
+      <div className="flex items-center justify-between pb-3 border-b border-border">
         <div className="flex items-center gap-2">
-          <Camera className="w-4 h-4 text-yellow-400" />
-          <h4 className="text-sm font-semibold text-slate-200">
-            {isScale ? "Digital Scale Photo Reader" : "Karatmeter Photo Reader"}
+          <Camera className="w-4 h-4 text-bronze stroke-[1.75]" />
+          <h4 className="text-sm font-semibold text-ink m-0">
+            {isScale ? "Precision scale photo reader" : "Karatmeter photo reader"}
           </h4>
         </div>
-        <span className="text-[11px] font-medium text-slate-400">
-          Vision OCR Assist
+        <span className="text-xs text-muted">
+          Vision OCR
         </span>
       </div>
 
-      <div className="mt-3 flex flex-col md:flex-row gap-4 items-center">
-        {/* Upload box */}
-        <label className="flex-1 w-full flex flex-col items-center justify-center p-4 border-2 border-dashed border-slate-700 hover:border-yellow-500/50 rounded-lg cursor-pointer bg-slate-800/40 transition">
-          <Upload className="w-5 h-5 text-slate-400 mb-1" />
-          <span className="text-xs font-medium text-slate-300">
-            {imagePreview ? "Choose another photo" : isScale ? "Upload scale readout photo" : "Upload karatmeter printout photo"}
-          </span>
-          <span className="text-[10px] text-slate-500 mt-0.5">PNG, JPG, WEBP (Max 5MB)</span>
+      {/* Upload button & file input */}
+      <div>
+        <label className="flex items-center justify-center gap-2 h-11 px-4 border border-border hover:border-bronze rounded bg-background text-sm text-ink font-medium cursor-pointer transition">
+          <Upload className="w-4 h-4 text-muted stroke-[1.75]" />
+          <span>{imagePreview ? "Replace photo" : isScale ? "Upload scale photo" : "Upload karatmeter printout"}</span>
           <input
             type="file"
             accept="image/png,image/jpeg,image/webp"
@@ -126,113 +164,124 @@ export default function PhotoReader({
             disabled={loading}
           />
         </label>
-
-        {/* Thumbnail Preview */}
-        {imagePreview && (
-          <div className="relative w-24 h-24 rounded-lg overflow-hidden border border-slate-700 bg-black shrink-0">
-            <img
-              src={imagePreview}
-              alt="Readout preview"
-              className="w-full h-full object-cover"
-            />
-            <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 hover:opacity-100 transition">
-              <Eye className="w-4 h-4 text-white" />
-            </div>
-          </div>
-        )}
+        <p className="text-[11px] text-muted mt-1 m-0">
+          PNG, JPG, or WEBP up to 5 MB
+        </p>
       </div>
 
       {loading && (
-        <div className="flex items-center justify-center gap-2 py-4 text-xs text-yellow-400">
-          <RefreshCw className="w-4 h-4 animate-spin" />
-          <span>Processing photo readout...</span>
+        <div className="py-4 text-center text-xs text-muted">
+          Analyzing instrument display...
         </div>
       )}
 
       {error && (
-        <div className="mt-3 p-2.5 rounded bg-rose-950/40 border border-rose-800 text-rose-300 text-xs flex items-center gap-2">
-          <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
-          <span>{error}</span>
+        <div className="p-3 bg-status-problem-tint border border-status-problem/20 rounded text-xs text-status-problem">
+          {error}
         </div>
       )}
 
-      {/* Fallback to Manual Entry */}
-      {isFallback && (
-        <div className="mt-4 p-3 bg-amber-950/40 border border-amber-700/60 rounded-lg space-y-3">
-          <div className="flex items-start gap-2 text-amber-200 text-xs">
-            <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-            <div>
-              <p className="font-semibold">AI Reading Unavailable / Unreadable</p>
-              <p className="text-[11px] text-amber-300/80 mt-0.5">
-                The digits could not be verified automatically. Please verify the physical instrument and enter the reading manually below.
-              </p>
-            </div>
+      {/* Photo on left, AI reading on right */}
+      {imagePreview && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 items-center">
+          {/* Photo on left */}
+          <div className="relative aspect-[4/3] rounded border border-border bg-background overflow-hidden flex items-center justify-center">
+            <img
+              src={imagePreview}
+              alt="Readout preview"
+              className="w-full h-full object-contain"
+            />
           </div>
 
-          <div className="flex items-center gap-2">
-            <div className="relative flex-1">
-              <input
-                type="text"
-                value={manualValue}
-                onChange={(e) => setManualValue(e.target.value)}
-                placeholder={isScale ? "e.g. 112.450" : "e.g. 91.60"}
-                className="input-base font-mono text-sm pr-8"
-              />
-              <span className="absolute right-3 top-2 text-xs text-slate-400 font-mono">
-                {isScale ? "g" : "%"}
-              </span>
-            </div>
-            <button
-              type="button"
-              onClick={handleApplyManualValue}
-              disabled={!manualValue.trim()}
-              className="btn-gold text-xs py-2 px-3 whitespace-nowrap"
-            >
-              Apply Manual Value
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Legible Extraction */}
-      {reading && !isFallback && (
-        <div className="mt-4 p-3 bg-slate-800/70 border border-slate-700 rounded-lg">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-              <span className="text-xs font-semibold text-slate-200">
-                Extracted:{" "}
-                <span className="text-yellow-400 font-mono text-sm ml-1">
-                  {isScale ? `${reading.value_text} g` : `${reading.purity_text} %`}
-                </span>
-              </span>
-            </div>
-            <span className="text-[11px] text-slate-400 font-mono">
-              Confidence: {reading.confidence}%
-            </span>
-          </div>
-
-          {mismatchWarning && (
-            <div className="mt-2 p-2 rounded bg-amber-950/40 border border-amber-700/60 text-amber-200 text-xs flex items-start gap-2">
-              <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-              <div>
-                <p className="font-semibold">Value Mismatch Warning</p>
-                <p className="text-[11px] text-amber-300/90 mt-0.5">
-                  Extracted photo value differs from currently entered input ({currentTypedValue}).
-                </p>
+          {/* AI reading on right */}
+          <div className="space-y-3">
+            {isFallback ? (
+              <div className="p-3 bg-status-review-tint border border-status-review/20 rounded text-xs text-status-review">
+                <p className="font-medium m-0">Photo reading is not available</p>
+                <p className="mt-1 m-0 text-muted">Enter the weight manually.</p>
               </div>
-            </div>
-          )}
+            ) : reading && reading.readable ? (
+              <div className="space-y-2">
+                <div className="text-xs text-muted">Instrument reading</div>
+                <GoldNumber
+                  value={isScale ? reading.value_mg : reading.purity_bp}
+                  type={isScale ? "weight" : "purity"}
+                  size="xl"
+                  isKeyBalance
+                />
+                <div className="text-xs text-muted">
+                  Confidence: <span className="font-medium text-ink">{confidenceWord}</span>
+                </div>
 
-          <div className="mt-3 flex items-center justify-end gap-2">
-            <button
-              type="button"
-              onClick={() => handleApplyExtractedValue(mismatchWarning)}
-              className="btn-gold text-xs py-1.5 px-3"
-            >
-              Use Extracted Value
-            </button>
+                {/* Two clear buttons */}
+                <div className="pt-2 flex flex-wrap gap-2">
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={handleUseReading}
+                  >
+                    Use this reading
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={handleEnterManually}
+                  >
+                    Enter manually
+                  </Button>
+                </div>
+              </div>
+            ) : null}
           </div>
+        </div>
+      )}
+
+      {/* Manual Entry override input */}
+      {manualMode && (
+        <div className="pt-3 border-t border-border space-y-2">
+          <div className="text-xs font-medium text-ink">
+            Manual instrument entry
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={manualValue}
+              onChange={(e) => setManualValue(e.target.value)}
+              placeholder={isScale ? "e.g. 112.450" : "e.g. 91.60"}
+              className="h-11 px-3 bg-surface border border-border rounded text-sm font-mono text-ink outline-none focus:border-bronze focus:ring-2 focus:ring-bronze/20 flex-1"
+            />
+            <Button
+              variant="secondary"
+              size="md"
+              onClick={handleConfirmManual}
+              disabled={!manualValue.trim()}
+            >
+              Confirm manual
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Visible blocking message when typed value differs */}
+      {isMismatch && (
+        <div className="p-3 bg-status-problem-tint border border-status-problem/20 rounded space-y-2 text-xs">
+          <div className="flex items-center gap-1.5 font-semibold text-status-problem">
+            <AlertTriangle className="w-4 h-4 shrink-0 stroke-[2]" />
+            <span>Reading mismatch detected</span>
+          </div>
+          <div className="grid grid-cols-2 gap-2 py-1 border-y border-status-problem/10 font-mono">
+            <div>
+              <span className="text-muted block text-[11px] font-sans">Photo reading:</span>
+              <span className="font-medium text-ink">{aiValue} {isScale ? "g" : "%"}</span>
+            </div>
+            <div>
+              <span className="text-muted block text-[11px] font-sans">Entered in form:</span>
+              <span className="font-medium text-status-problem">{currentTypedValue} {isScale ? "g" : "%"}</span>
+            </div>
+          </div>
+          <p className="text-muted m-0">
+            Form value must match confirmed photo reading or be confirmed manually before saving.
+          </p>
         </div>
       )}
     </div>
