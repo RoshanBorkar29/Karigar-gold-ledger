@@ -29,10 +29,10 @@ export default function Button({
   }[size] || "h-11 px-4 text-sm gap-2";
 
   const variantClasses = {
-    primary: "bg-bronze text-white hover:bg-bronze-hover active:bg-bronze-hover border border-transparent focus:ring-2 focus:ring-bronze/30 shadow-none",
-    secondary: "bg-surface text-ink border border-border hover:border-bronze hover:bg-background active:bg-background focus:ring-2 focus:ring-bronze/20 shadow-none",
-    text: "bg-transparent text-muted hover:text-ink hover:bg-background active:bg-background border border-transparent focus:ring-2 focus:ring-border shadow-none",
-    danger: "bg-status-problem text-white hover:bg-status-problem/90 border border-transparent focus:ring-2 focus:ring-status-problem/30 shadow-none",
+    primary: "bg-bronze text-white hover:bg-bronze-hover active:bg-bronze-hover border border-transparent focus:ring-2 focus:ring-bronze shadow-none",
+    secondary: "bg-surface text-ink border border-border hover:border-bronze hover:bg-background active:bg-background focus:ring-2 focus:ring-bronze shadow-none",
+    text: "bg-transparent text-muted hover:text-ink hover:bg-background active:bg-background border border-transparent focus:ring-2 focus:ring-bronze shadow-none",
+    danger: "bg-status-problem text-white hover:bg-status-problem/90 border border-transparent focus:ring-2 focus:ring-status-problem shadow-none",
   }[variant] || "";
 
   const disabledClasses = disabled
@@ -40,7 +40,7 @@ export default function Button({
     : "";
 
   return (
-    <div className="inline-flex flex-col items-start">
+    <div className="inline-flex items-center gap-3">
       <button
         type={type}
         onClick={onClick}
@@ -56,7 +56,7 @@ export default function Button({
         <span>{children}</span>
       </button>
       {disabled && disabledReason && (
-        <span className="text-xs text-muted mt-1 max-w-xs">
+        <span className="text-xs text-muted whitespace-normal">
           {disabledReason}
         </span>
       )}

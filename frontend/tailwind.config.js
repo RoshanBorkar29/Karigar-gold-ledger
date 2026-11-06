@@ -12,10 +12,26 @@ export default {
         ink: "var(--color-ink)",
         muted: "var(--color-muted)",
         border: "var(--color-border)",
+        sidebar: {
+          DEFAULT: "var(--color-sidebar)",
+          border: "var(--color-sidebar-border)",
+        },
+        input: {
+          bg: "var(--color-input-bg)",
+          border: "var(--color-input-border)",
+        },
+        result: {
+          bg: "var(--color-result-bg)",
+          border: "var(--color-result-border)",
+        },
         bronze: {
           DEFAULT: "var(--color-accent)",
           hover: "var(--color-accent-hover)",
           subtle: "var(--color-accent-subtle)",
+        },
+        table: {
+          header: "var(--color-table-header)",
+          hover: "var(--color-table-hover)",
         },
         status: {
           ok: "var(--color-ok)",
