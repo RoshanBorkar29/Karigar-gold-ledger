@@ -20,6 +20,9 @@ dist-ssr/
 .env
 .env.*
 !.env.example
+*.pem
+*.key
+*.cert
 
 # Local Database & Uploads
 uploads/

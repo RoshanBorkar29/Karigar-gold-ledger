@@ -1,13 +1,13 @@
 """Pydantic schemas for user accounts, authentication requests, and token responses."""
 
 from datetime import datetime
-from pydantic import BaseModel, ConfigDict, EmailStr
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class UserBase(BaseModel):
     """Base fields shared by user schemas."""
 
-    email: EmailStr
+    email: str = Field(..., min_length=3, max_length=255, description="User email address")
     full_name: str
     role: str
     is_active: bool = True
@@ -31,7 +31,7 @@ class UserRead(UserBase):
 class LoginRequest(BaseModel):
     """Schema for user credentials submitted at login."""
 
-    email: EmailStr
+    email: str = Field(..., min_length=3, max_length=255, description="Login email address")
     password: str
 
 

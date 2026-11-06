@@ -31,9 +31,9 @@ export default function Login() {
     }
   };
 
-  const handleQuickLogin = (quickEmail, quickPassword) => {
+  const handleQuickLogin = (quickEmail) => {
     setEmail(quickEmail);
-    setPassword(quickPassword);
+    setPassword("");
   };
 
   return (
@@ -108,13 +108,16 @@ export default function Login() {
 
         {/* Demo Fast Login Buttons */}
         <div className="mt-8 pt-6 border-t border-slate-800">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 text-center mb-3">
-            Quick Switch Demo Roles
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 text-center mb-1">
+            Prefill Demo Account
+          </p>
+          <p className="text-[10px] text-slate-600 text-center mb-3">
+            (Passwords documented in deployment.md)
           </p>
           <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
-              onClick={() => handleQuickLogin("clerk@workshop.local", "clerk123")}
+              onClick={() => handleQuickLogin("clerk@workshop.local")}
               className="p-2.5 rounded-lg border border-slate-800 bg-slate-900/60 hover:border-slate-700 text-left transition"
             >
               <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-200">
@@ -128,7 +131,7 @@ export default function Login() {
 
             <button
               type="button"
-              onClick={() => handleQuickLogin("finance@workshop.local", "finance123")}
+              onClick={() => handleQuickLogin("finance@workshop.local")}
               className="p-2.5 rounded-lg border border-slate-800 bg-slate-900/60 hover:border-yellow-500/40 text-left transition"
             >
               <div className="flex items-center gap-1.5 text-xs font-semibold text-yellow-400">

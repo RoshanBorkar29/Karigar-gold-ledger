@@ -21,6 +21,7 @@ from app.services.stock_statement import (
 router = APIRouter(prefix="/stock", tags=["stock statement (finance only)"])
 
 
+@router.get("", response_model=DailyStockStatementRead)
 @router.get("/daily", response_model=DailyStockStatementRead)
 def get_daily_stock_statement(
     db: Annotated[Session, Depends(get_db)],
