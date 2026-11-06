@@ -240,7 +240,7 @@ def test_reject_closed_job_with_no_closed_on(db_session, base_fixtures):
 
 
 def test_seed_computed_balance_for_murugesan(db_engine):
-    """Verify that seed data calculates Murugesan's fine gold balance to 3893 mg using plain SQL."""
+    """Verify that seed data calculates Murugesan's fine gold balance to 3893 mg for the sample job using plain SQL."""
     # Ensure fresh schema
     Base.metadata.drop_all(bind=db_engine)
     Base.metadata.create_all(bind=db_engine)
@@ -258,18 +258,19 @@ def test_seed_computed_balance_for_murugesan(db_engine):
         SessionLocal.configure(bind=old_bind)
 
     with Session(db_engine) as session:
-        # Fetch Murugesan S
+        # Fetch Murugesan S and the sample job
         murugesan = session.query(Karigar).filter(Karigar.code == "K-001").one()
+        job = session.query(Job).filter(Job.job_no == "JOB-2026-001").one()
 
-        # Plain SQL balance calculation: (SUM issues.fine_mg) - (SUM receipts.fine_mg)
+        # Plain SQL balance calculation for the sample job: (SUM issues.fine_mg) - (SUM receipts.fine_mg)
         balance_sql = text("""
             SELECT
-                (SELECT COALESCE(SUM(fine_mg), 0) FROM issues WHERE karigar_id = :k_id) -
-                (SELECT COALESCE(SUM(fine_mg), 0) FROM receipts WHERE karigar_id = :k_id)
+                (SELECT COALESCE(SUM(fine_mg), 0) FROM issues WHERE karigar_id = :k_id AND job_id = :job_id) -
+                (SELECT COALESCE(SUM(fine_mg), 0) FROM receipts WHERE karigar_id = :k_id AND job_id = :job_id)
             AS balance
         """)
-        balance = session.execute(balance_sql, {"k_id": murugesan.id}).scalar()
+        balance = session.execute(balance_sql, {"k_id": murugesan.id, "job_id": job.id}).scalar()
 
-        # Exact fine gold assertion from sample calculations
+        # Exact fine gold assertion from sample calculations (109920 - 103004 - 3023 = 3893)
         assert balance == 3893, f"Expected 3893 mg running balance, got {balance}"
 

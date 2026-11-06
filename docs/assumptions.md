@@ -1,25 +1,29 @@
 # Assumptions
 
-- **ASSUMPTION**: Half-up rounding to the milligram `(val * bp + 5000) // 10000` is applied for all fine gold and allowed wastage calculations to prevent systemic loss/gain drift.
+- **ASSUMPTION**: Half-up rounding to the milligram `(val * bp + 5000) // 10000` is adopted as a defined project assumption for all fine gold and allowed wastage calculations to prevent systemic loss/gain drift.
 - **ASSUMPTION**: Allowed wastage is applied to ISSUED FINE weight, not gross weight, ensuring wastage allowances strictly account for pure gold content.
 - **ASSUMPTION**: Gold rate of Rs 12,500 per gram is the brief's assumed valuation rate for old-gold calculations.
-- **ASSUMPTION**: Scale and karat photos will be synthetic (generated via Pillow) because the brief provides no physical photo samples.
-- **ASSUMPTION**: Purity is accepted and stored to exactly 2 decimal places (basis points: 91.60% = 9160 bp) and weight to exactly 3 decimal places (milligrams: 112.450 g = 112450 mg), as specified in the project brief.
+- **ASSUMPTION**: Scale and karat photos are synthetic (generated via Pillow) because the brief provides no physical photo samples.
+- **ASSUMPTION**: Purity is accepted and stored to exactly 2 decimal places (basis points: 91.60% = 9160 bp) and weight to exactly 3 decimal places (milligrams: 112.450 g = 112450 mg), as adopted in the project architecture.
 - **ASSUMPTION**: Wastage percentage is agreed specifically per karigar and item category pair, recognizing that different artisans have distinct craftsmanship tolerances across jewellery categories (e.g., necklaces vs rings).
 - **ASSUMPTION**: When a workshop job order is opened, it snapshots the agreed wastage basis points at that moment, protecting active jobs from retroactively changing should master agreed rates be revised later.
 - **ASSUMPTION**: Karigar running fine-gold balances and vault stocks are dynamically computed from append-only ledger transaction rows (`SUM(issues.fine_mg) - SUM(receipts.fine_mg)`), ensuring a single source of truth without stored balance drift.
 - **ASSUMPTION**: Vault movements track bulk gold movements in and out of the workshop vault (bullion intake, transfers to refiners for refining, and refined bullion returns) using append-only fine milligram records.
 - **ASSUMPTION**: The business transaction date (`entry_date`) represents the operational calendar date in India (`Asia/Kolkata` time zone), independent of the server UTC `created_at` audit timestamp.
-- **ASSUMPTION**: Transaction IDs follow the brief's sample format `TX-XXXXX` (e.g., `TX-30411`, `TX-30437`) and serve as human-readable slips referenced on paper records and physical tags.
+- **ASSUMPTION**: Transaction IDs follow the format `TX-XXXXX` (e.g., `TX-30411`, `TX-30437`) generated atomically from a PostgreSQL sequence `txn_seq`.
 - **ASSUMPTION**: Total returned gold for a job is strictly the sum of finished jewellery, scrap, and filings fine weight (`returned = finished + scrap + filings`).
 - **ASSUMPTION**: Actual wastage incurred on a job is computed as issued fine gold minus total returned fine gold (`actual wastage = issued - returned`).
 - **ASSUMPTION**: Wastage allowance is applied to the job's issued fine weight (`allowed_wastage_mg(issued_fine_mg, wastage_bp)`).
 - **ASSUMPTION**: An open job whose outstanding gold exceeds the agreed wastage allowance is categorized as "outstanding beyond allowance", whereas only a closed job beyond allowance is formally categorized as an unrecoverable "loss beyond allowance".
 - **ASSUMPTION**: Over-return on a job (returned > issued) is strictly rejected by the service layer with an `OverReturnError`; scrap or surplus gold from other jobs or external sources must be issued or recorded under a separate transaction rather than merged into an existing job order.
-- **ASSUMPTION**: For finished jewellery receipts, a Hallmarking Unique Identification (HUID) is mandatory and must consist of exactly 6 uppercase alphanumeric characters (`^[A-Z0-9]{6}$`), complying with Bureau of Indian Standards (BIS) hallmarking regulations. Scrap and filings receipts must have no HUID (`None`).
+- **ASSUMPTION**: For finished jewellery receipts, a Hallmarking Unique Identification (HUID) is mandatory and must consist of exactly 6 uppercase alphanumeric characters (`^[A-Z0-9]{6}$`). Scrap and filings receipts must have no HUID (`None`).
 - **ASSUMPTION**: Business transaction date (`entry_date`) is evaluated against the Indian calendar date (`Asia/Kolkata` time zone); transactions with future dates or dates preceding the job order's `opened_on` date are strictly rejected.
 - **ASSUMPTION**: All ledger corrections and mistake rectifications are recorded via an append-only audit `entry_voids` table with a mandatory explanatory reason (minimum 5 characters), rather than in-place mutations or edits.
 - **ASSUMPTION**: JWT authentication tokens encode user identity and role with 24-hour expiration for daily workshop shifts.
-- **ASSUMPTION**: High-value old-gold desk purchases equal to or exceeding ₹2,00,000 (20,000,000 paise) mandate a 10-character Permanent Account Number (PAN) and strictly forbid cash payments under Section 269ST.
+- **ASSUMPTION**: High-value old-gold desk purchases equal to or exceeding ₹2,00,000 (20,000,000 paise) mandate a verified 10-character Permanent Account Number (PAN: `^[A-Z]{5}[0-9]{4}[A-Z]{1}$`) and restrict cash payments as a client policy threshold (configured via `OLD_GOLD_HIGH_VALUE_THRESHOLD_PAISE` and `OLD_GOLD_PAN_REQUIRED_THRESHOLD_PAISE`), to be confirmed with the client's accountant.
 - **ASSUMPTION**: Tally CSV exports are formatted with date, stock category, account particulars, and fine weights (both grams and milligrams) for direct ERP ingestion.
-- **ASSUMPTION**: Anomaly detection for artisan loss drift considers recent job wastage against baseline averages and flags deviations exceeding baseline average plus 50 basis points (0.50%) or 1 integer standard deviation.
+- **ASSUMPTION**: Statistical loss drift evaluation requires a minimum baseline history of 3 completed jobs (`sample_size >= 3`). Artisans with fewer completed jobs are marked as having insufficient history.
+- **ASSUMPTION**: Anomaly detection for artisan loss drift flags an alert only when recent job loss exceeds BOTH the baseline average plus 2 integer standard deviations AND the baseline average plus 50 basis points (0.50%).
+- **ASSUMPTION**: Groq vision and text model names (`GROQ_VISION_MODEL` and `GROQ_TEXT_MODEL`) are configured strictly via environment variables, with no hardcoded fallback model defaults in the application codebase.
+- **ASSUMPTION**: AI vision OCR assistance never synthesizes or fakes readings; if the provider is unavailable, times out, or image digits are unreadable/out-of-range, the workflow strictly falls back to manual entry with clear operator notice.
+- **ASSUMPTION**: Transfers to refiners (`to_refiner`) cannot exceed the current available vault fine gold balance as of the transfer date, preventing negative vault positions.

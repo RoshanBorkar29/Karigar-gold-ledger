@@ -16,24 +16,24 @@ This document records the architectural, mathematical, and implementation decisi
 ---
 
 ### Decision 2: Basis Points for Purity and Wastage
-- **Decision**: Represent purity and wastage as integer basis points ($1\text{ bp} = 0.01\%$, where $91.60\% = 9,160\text{ bp}$ and $3.00\% = 300\text{ bp}$).
+- **Decision**: Represent purity and wastage as integer basis points ($1\text{ bp} = 0.01\%$, where $91.60\% = 9,160\text{ bp}$ and $3.00\% = 300\text{ bp}$) as an explicit system design assumption.
 - **Options Considered**:
   1. Percentage as float or Decimal (`91.60`).
   2. Fractional multipliers (`0.9160`).
   3. Basis points as integer (`9160`).
-- **Why Chosen**: Gold purity in India is standardized to 2 decimal places (e.g., 91.60% for 22K hallmarked gold, 75.00% for 18K). Using integer basis points keeps all math strictly within integer domain arithmetic, avoiding any fractional conversion or float conversions.
+- **Why Chosen**: Adopting integer basis points keeps all math strictly within integer domain arithmetic, avoiding any fractional conversion or float conversions.
 - **Trade-off**: Requires developers and domain services to treat the denominator as a constant $10,000$ ($100 \times 100$).
 
 ---
 
-### Decision 3: Half-Up Integer Rounding Formula
+### Decision 3: Half-Up Integer Rounding Formula as Defined Project Assumption
 - **Decision**: Use the formula `(val * bp + 5000) // 10000` for all fine weight and allowed wastage calculations.
 - **Options Considered**:
   1. Floor truncation (`// 10000`).
   2. Round half-to-even (`round()` / banker's rounding).
-  3. Standard commercial half-up rounding implemented via integer arithmetic (`+ 5000 // 10000`).
-- **Why Chosen**: Jewellery workshops and commercial gold accounting in India follow strict half-up rounding (0.5 mg rounds up to 1 mg). Banker's rounding can produce non-intuitive alternating adjustments for artisans. Adding half the denominator (`5000`) before integer floor division (`// 10000`) achieves exact half-up rounding without invoking any floating-point or Decimal libraries.
-- **Trade-off**: Half-up rounding introduces a minor positive bias over infinite distributions, but aligns with jewellery trade conventions and the project specification.
+  3. Standard half-up rounding implemented via integer arithmetic (`+ 5000 // 10000`).
+- **Why Chosen**: Adopted as an explicit project assumption to ensure consistent half-up rounding (0.5 mg rounds up to 1 mg) without invoking any floating-point or Decimal libraries. Adding half the denominator (`5000`) before integer floor division (`// 10000`) achieves exact half-up integer rounding.
+- **Trade-off**: Half-up rounding introduces a minor positive bias over infinite distributions, but aligns with the project specification.
 
 ---
 
@@ -41,9 +41,9 @@ This document records the architectural, mathematical, and implementation decisi
 - **Decision**: Author the comprehensive test suite (`test_gold.py`) and verify failures against a stub before implementing `gold.py`.
 - **Options Considered**:
   1. Code implementation first, write unit tests afterward.
-  2. Write tests first, verify RED (130 failures), then implement to GREEN.
+  2. Write tests first, verify failure against stubs, then implement to pass.
 - **Why Chosen**: Testing first guarantees the specifications (sample values, boundary conditions, edge cases, round-trips, and invalid inputs) are verified independently of the implementation. It prevents subconscious bias where tests are written to mirror quirks of the implementation.
-- **Trade-off**: Requires an extra initial step to write stubs and commit failing tests before delivering working features.
+- **Trade-off**: Requires an extra initial step to write stubs and verify failing tests before delivering working features.
 
 ---
 
@@ -73,29 +73,29 @@ This document records the architectural, mathematical, and implementation decisi
 - **Options Considered**:
   1. Use Pydantic custom types or validator classes inside `gold.py`.
   2. Write pure Python standard library functions with native types.
-- **Why Chosen**: The core arithmetic of the domain represents the enterprise business rules. Keeping it decoupled from frameworks and database ORMs ensures it can be tested in sub-millisecond isolation, reused across services, workers, scripts, CLI tools, or migrated across frameworks without touching the core math.
+- **Why Chosen**: The core arithmetic of the domain represents the enterprise business rules. Keeping it decoupled from frameworks and database ORMs ensures it can be tested in isolation, reused across services, workers, scripts, CLI tools, or migrated across frameworks without touching the core math.
 - **Trade-off**: Pydantic schemas and database models must wrap or call these functions rather than embedding the domain logic directly within ORM hooks.
 
 ---
 
-### Decision 8: Append-Only Ledger Tables vs In-Place Mutation
-- **Decision**: Design ledger tables (`issues`, `receipts`, `vault_movements`) as strictly append-only; disallow `UPDATE` or `DELETE` operations at both the application and ORM levels.
+### Decision 8: Append-Only Ledger Tables with Dedicated `entry_voids` Audit Table
+- **Decision**: Design ledger tables (`issues`, `receipts`, `vault_movements`) as strictly append-only with no `UPDATE` or `DELETE` code paths. Corrections and mistake cancellations are recorded via a dedicated `entry_voids` table with a mandatory reason ($\ge 5$ characters).
 - **Options Considered**:
-  1. Editable transactions with updating balances.
-  2. Soft deletes (`is_deleted` column) and in-place row edits.
-  3. Immutable, append-only journal entries (with reversals or adjusting entries for corrections).
-- **Why Chosen**: Gold ledger auditing requires absolute immutability. If an issue or receipt record could be updated in place, historical balance reconstruction across dates becomes unreliable, and accountability for physical metal slips is broken. Adjustments must always be recorded as compensatory append entries.
-- **Trade-off**: Corrections require creating new reversal transactions rather than quick row edits.
+  1. In-place `UPDATE` or `DELETE` operations on transactions.
+  2. Soft deletes (`is_deleted` column).
+  3. Dedicated `entry_voids` table with unique foreign keys per transaction and mandatory audit reason.
+- **Why Chosen**: Gold ledger auditing requires absolute immutability. If an issue or receipt record could be updated in place, historical balance reconstruction across dates becomes unreliable, and accountability for physical metal slips is broken. The `entry_voids` table maintains 100% append-only immutability, enforces exactly-once voiding via unique constraints (`uq_entry_voids_issue_id`, `uq_entry_voids_receipt_id`), requires an audit explanation ($\ge 5$ characters), and enables clean `LEFT JOIN entry_voids ... WHERE entry_voids.id IS NULL` filtering.
+- **Trade-off**: Balance queries must join or filter against the `entry_voids` table to exclude voided transactions.
 
 ---
 
-### Decision 9: Dynamically Computed vs Persisted Stored Balance
+### Decision 9: Dynamically Computed Running Balances vs Mutable Stored Column
 - **Decision**: Compute running balances dynamically from ledger records using SQL aggregation (`SUM(issues.fine_mg) - SUM(receipts.fine_mg)`) rather than storing a mutable `current_balance_mg` on the karigar row.
 - **Options Considered**:
   1. Mutable cached balance column on `karigars` updated via triggers or application code.
   2. Dynamically computed balance on read via SQL sum over immutable transactions.
-- **Why Chosen**: Storing a running balance creates double-entry synchronization bugs, deadlocks under concurrent issues/receipts, and drift if any query bypasses the update lock. PostgreSQL can aggregate tens of thousands of rows with `(karigar_id, entry_date)` indexes in sub-millisecond time.
-- **Trade-off**: Read queries aggregate transaction rows; mitigable by day-level materialized snapshotting if transaction volume reaches millions.
+- **Why Chosen**: Storing a mutable running balance introduces synchronization hazards and balance drift if any direct database write or partial rollback occurs. Computing balance dynamically from the immutable ledger transactions guarantees a single, verifiable source of truth.
+- **Trade-off**: Read queries aggregate transaction rows rather than reading a static cached column.
 
 ---
 
@@ -146,7 +146,7 @@ This document records the architectural, mathematical, and implementation decisi
   1. Unconstrained `VARCHAR` strings with application-level validation.
   2. Foreign key lookup tables for status types.
   3. Native PostgreSQL ENUM types mapped through SQLAlchemy.
-- **Why Chosen**: Postgres ENUMs provide storage efficiency (4 bytes per value instead of variable strings) and strict database-level domain safety against invalid state mutations or typos.
+- **Why Chosen**: Postgres ENUMs provide database-level domain safety against invalid state mutations or typos.
 - **Trade-off**: Adding new enum values in Postgres requires an `ALTER TYPE ... ADD VALUE` migration.
 
 ---
@@ -157,7 +157,7 @@ This document records the architectural, mathematical, and implementation decisi
   1. Hardcoding default database credentials in `docker-compose.yml`.
   2. Requiring manual local PostgreSQL installation.
   3. Environment-driven `docker-compose.yml` service.
-- **Why Chosen**: Guarantees zero secret leakage into version control while enabling one-command local developer onboarding (`docker compose up -d`) across macOS, Linux, and Windows environments.
+- **Why Chosen**: Guarantees zero secret leakage into version control while enabling local developer onboarding across operating systems.
 - **Trade-off**: Developers without Docker Desktop must run a local PostgreSQL service directly.
 
 ---
@@ -168,7 +168,7 @@ This document records the architectural, mathematical, and implementation decisi
   1. Mutable rows with `UPDATE` / `DELETE` operations.
   2. Inserting compensatory negative issues/receipts (e.g. `-100,000 mg`).
   3. Dedicated `entry_voids` table referencing the original transaction with unique foreign keys and a mandatory audit reason.
-- **Why Chosen**: In-place edits destroy the audit trail, violating physical slip reconciliation. Negative entries complicate domain rules and database range check constraints (which enforce `fine_mg > 0` and `gross_mg > 0`). The dedicated `entry_voids` table maintains 100% append-only immutability, enforces exactly-once voiding via unique constraints (`uq_entry_voids_issue_id`, `uq_entry_voids_receipt_id`), requires a human-readable explanation ($\ge 5$ characters), and enables simple `LEFT JOIN entry_voids ... WHERE entry_voids.id IS NULL` filtering.
+- **Why Chosen**: In-place edits destroy the audit trail, violating physical slip reconciliation. Negative entries complicate domain rules and database range check constraints (which enforce `fine_mg > 0` and `gross_mg > 0`). The dedicated `entry_voids` table maintains 100% append-only immutability.
 - **Trade-off**: Requires an additional join table in balance and settlement queries.
 
 ---
@@ -179,7 +179,7 @@ This document records the architectural, mathematical, and implementation decisi
   1. `SELECT MAX(id) + 1` or parsing the highest `TX-XXXXX` string.
   2. UUID / GUID strings (e.g. `TX-550e8400...`).
   3. PostgreSQL sequence `txn_seq` via `nextval('txn_seq')`.
-- **Why Chosen**: `MAX() + 1` queries suffer from race conditions, table lock contention, and duplicate key collisions under concurrent clerk submissions. Random UUIDs are unreadable on physical workshop gold slips and jewellery tags. A database sequence guarantees atomic, crash-safe, strictly monotonic identifier generation without locking the tables.
+- **Why Chosen**: `MAX() + 1` queries suffer from race conditions and duplicate key collisions under concurrent clerk submissions. Random UUIDs are unreadable on physical workshop gold slips and jewellery tags. A database sequence guarantees atomic, crash-safe, monotonic identifier generation.
 - **Trade-off**: Failed or rolled-back transactions consume sequence numbers, creating harmless gaps in sequence numbering.
 
 ---
@@ -205,13 +205,13 @@ This document records the architectural, mathematical, and implementation decisi
 
 ---
 
-### Decision 20: Single Aggregate SQL Queries vs In-Memory Python Loops
-- **Decision**: Calculate karigar running balances and workshop-wide statements using a single SQL query with `GROUP BY` and conditional aggregations (`CASE WHEN`), avoiding row-by-row Python iteration.
+### Decision 20: SQL Group Aggregation vs In-Memory Python Loops
+- **Decision**: Calculate karigar running balances and workshop-wide statements using SQL queries with `GROUP BY` and conditional aggregations (`CASE WHEN`), avoiding row-by-row Python iteration.
 - **Options Considered**:
   1. Fetching all issues and receipts into Python memory and aggregating in application loops.
   2. Executing `N+1` database queries (one query per karigar and one per job).
   3. Single SQL aggregate query joining jobs, non-voided issues, and non-voided receipts.
-- **Why Chosen**: In a jewellery workshop with ~40 karigars and thousands of daily issue/receipt transactions, Python loops incur massive memory overhead, high network latency, and $O(N)$ database round-trips. PostgreSQL computes aggregate sums over indexed columns in microseconds, returning ready-to-consume balance totals in one network round-trip.
+- **Why Chosen**: SQL database aggregation processes transaction records directly within the database engine and returns computed balance totals in a single round-trip, avoiding memory bloat and round-trip latency.
 - **Trade-off**: SQL queries require careful construct with subqueries or CTEs to prevent Cartesian product duplication between issues and receipts.
 
 ---
@@ -227,10 +227,10 @@ This document records the architectural, mathematical, and implementation decisi
 ---
 
 ### Decision 22: Preserving Migration History vs Editing Initial Migration
-- **Decision**: Create a new, forward-only Alembic migration (`e4a71b29df31`) for `entry_voids` and `txn_seq` instead of modifying the initial schema migration (`c726705440a6`).
+- **Decision**: Create new, forward-only Alembic migrations for schema evolutions rather than modifying historical migration files.
 - **Options Considered**:
   1. Editing migration 1 and recreating the database schema from scratch.
-  2. Adding a new migration script with explicit upgrade and downgrade operations.
+  2. Adding new migration scripts with explicit upgrade and downgrade operations.
 - **Why Chosen**: Production database evolution requires strictly immutable, forward-only migration chains. Altering historical migrations breaks deployed environments, corrupts Alembic version history across developer machines, and destroys schema provenance.
 - **Trade-off**: Requires maintaining multiple migration files in the repository.
 
@@ -262,35 +262,87 @@ This document records the architectural, mathematical, and implementation decisi
 - **Options Considered**:
   1. Using `numpy.std` or Python `statistics.stdev` with IEEE 754 floats.
   2. Pure integer standard deviation via `math.isqrt((sum(sq_diff)) // N)`.
-- **Why Chosen**: Preserves the project's zero-float invariant across statistical drift calculations. Flags anomalous loss drift if recent loss exceeds baseline average by >50 basis points (0.50%) or 1 integer standard deviation.
+- **Why Chosen**: Preserves the project's zero-float invariant across statistical drift calculations.
 - **Trade-off**: Minor sub-basis point precision loss in standard deviation calculation, which is insignificant for workshop tolerance thresholds.
 
 ---
 
-### Decision 26: Section 269ST and Section 139A Statutory Enforcement on Old-Gold Desk
-- **Decision**: Reject old-gold purchases $\ge$ ₹2,00,000 (20,000,000 paise) with missing PAN (HTTP 422) or cash payment mode (HTTP 400) on both backend and frontend.
+### Decision 26: Client Policy Thresholds for Old-Gold Purchases
+- **Decision**: Implement high-value threshold checks (Rs 2,00,000 = 20,000,000 paise) for mandatory customer PAN (`^[A-Z]{5}[0-9]{4}[A-Z]{1}$`) and restricted cash payment mode as an explicit client policy assumption, to be confirmed with their accountant.
 - **Options Considered**:
-  1. Non-blocking UI warning banner allowing the clerk to proceed.
-  2. Hard database and service rejection enforcing Indian Income Tax regulations.
-- **Why Chosen**: Under Section 269ST, accepting cash of ₹2 Lakh or more incurs a 100% statutory penalty on the jeweller. Enforcing validation at the API boundary ensures strict legal compliance before gold enters the vault.
-- **Trade-off**: Prevents offline or emergency cash processing above the statutory threshold without PAN verification.
+  1. Hardcoding statutory legal claims with penalty warnings in UI and API error messages.
+  2. Abstracting policy thresholds into configurable settings (`OLD_GOLD_HIGH_VALUE_THRESHOLD_PAISE`, `OLD_GOLD_PAN_REQUIRED_THRESHOLD_PAISE`) labeled as client policy assumptions to be confirmed with their accountant.
+- **Why Chosen**: Software should avoid embedding unverified legal claims or penalty assertions. Formulating rules as configurable client policy assumptions to be confirmed with the workshop's accountant provides clarity, flexibility, and auditability.
+- **Trade-off**: Requires configuring policy threshold parameters via environment variables if rules differ across client jurisdictions.
 
 ---
 
-### Decision 27: AI Scale Vision and Craft Loss Explanations with Offline Resilience
-- **Decision**: Integrate Groq Vision (`llama-3.2-11b-vision-preview` / `meta/llama-3.2-11b-vision-instruct`) and text (`llama-3.3-70b-versatile`) with robust local fallback for synthetic/test environments and offline resiliency.
-- **Options Considered**:
-  1. Direct hard dependency on Groq API without fallback (failing if API key missing or rate-limited).
-  2. Pluggable provider architecture with heuristic OCR fallback and structured audit template generator.
-- **Why Chosen**: Guarantees tests pass cleanly in air-gapped CI environments and ensures continuous workshop operations if internet connectivity is interrupted.
-- **Trade-off**: Template fallback produces standardized phrasing rather than dynamic contextual craftsmanship explanations.
-
----
-
-### Decision 28: Tabular Monospace Precision in React UI
-- **Decision**: Render all gold figures with `font-variant-numeric: tabular-nums` and JetBrains Mono monospace fonts, pairing gross weight inputs with live mathematical half-up fine gold previews and printable physical voucher slips (`TX-XXXXX`).
+### Decision 27: Tabular Monospace Precision in React UI
+- **Decision**: Render all gold figures with `font-variant-numeric: tabular-nums` and monospace fonts, pairing gross weight inputs with live mathematical half-up fine gold previews and printable physical voucher slips (`TX-XXXXX`).
 - **Options Considered**:
   1. Standard proportional sans-serif font styling.
   2. Tabular monospace layout with color-coded liability alerts and printable physical vouchers.
 - **Why Chosen**: Proportional fonts make decimal-aligned gold weight comparisons error-prone on busy workshop floors. Tabular alignment ensures milligrams and purities line up cleanly, preventing visual misreads.
-- **Trade-off**: Requires including a dedicated monospace font family in the frontend bundle.
+- **Trade-off**: Requires monospace font styling across number-heavy screens.
+
+---
+
+### Decision 28: Forward-Only Database Migrations
+- **Decision**: Maintain migrations as an immutable append-only record of database schema evolution.
+- **Options Considered**:
+  1. Re-generating single migration files.
+  2. Forward-only numbered migration scripts.
+- **Why Chosen**: Guarantees zero regression across environments and maintains migration lineage.
+- **Trade-off**: Multiple migration scripts must be retained in the repository.
+
+---
+
+### Decision 29: AI Fallback Is Manual Entry, Never a Fake Reading
+- **Decision**: Eliminate any heuristic or mock OCR fallback in production code paths. When the Groq Vision model is unavailable, missing an API key, times out, or produces unreadable/invalid data, the service strictly returns `{"readable": False, "fallback": "manual"}` and records outcome `fallback_manual`. The frontend displays a clear notice and prompts the clerk for manual entry.
+- **Options Considered**:
+  1. Mocking or synthesizing a reading from image filenames or simulated patterns when Groq is unreachable.
+  2. Returning an unreadable status with fallback to manual entry.
+- **Why Chosen**: Generating fake readings in financial bullion software risks committing incorrect physical weights into the ledger. An honest assistant must never fake instrument readings; falling back cleanly to operator verification is the only safe and truthful architecture.
+- **Trade-off**: Requires clerks to type values manually when the vision provider is offline or photos are degraded.
+
+---
+
+### Decision 30: Server-Side Mismatch Block for Confirmed AI Readings
+- **Decision**: Allow optional `ai_reading_id` on issue creation and old-gold creation endpoints. If supplied and the clerk's entered value differs from the confirmed reading text, the server rejects the request with HTTP 422 Unprocessable Entity and marks the reading's audit outcome as `mismatch_blocked`.
+- **Options Considered**:
+  1. Client-side warning only in the UI.
+  2. Server-side validation enforcing that entered values match the audit record.
+- **Why Chosen**: UI-only validation can be bypassed by direct API calls or compromised clients. Enforcing mismatch blocking at the API layer guarantees that the audit record and ledger transaction remain in 1:1 agreement.
+- **Trade-off**: If a clerk genuinely wants to correct a misread, they must explicitly override and confirm the corrected reading through the audit endpoint before submitting the transaction.
+
+---
+
+### Decision 31: Vision and Text Model Names from Environment Variables Only
+- **Decision**: Load `GROQ_VISION_MODEL` and `GROQ_TEXT_MODEL` strictly from environment variables without default model name fallbacks in the application codebase.
+- **Options Considered**:
+  1. Hardcoding default model names in `config.py`.
+  2. Reading model names exclusively from environment settings.
+- **Why Chosen**: AI model offerings and deprecation schedules evolve rapidly. Requiring model names to be declared via `.env` ensures operators verify active model availability in their Groq console (e.g. `llama-3.2-11b-vision-preview` or `llama-3.2-90b-vision-preview` for vision, `llama-3.3-70b-versatile` or `llama-3.1-8b-instant` for text) rather than relying on stale defaults.
+- **Trade-off**: Missing environment variables will disable AI vision features and trigger manual fallback.
+
+---
+
+### Decision 32: Statistical Loss Drift Threshold (2 Standard Deviations + 50 Basis Points with Minimum 3 Baseline Jobs)
+- **Decision**: Require at least 3 completed jobs for baseline history (`sample_size >= 3`). Trigger an anomaly alert only when recent loss exceeds BOTH:
+  1. `recent_loss_bp > baseline_mean_bp + 2 * baseline_stddev_bp`
+  2. `recent_loss_bp > baseline_mean_bp + 50` (0.50% minimum threshold)
+- **Options Considered**:
+  1. 1 standard deviation or 50 bp threshold without minimum history.
+  2. 2 standard deviations AND 50 bp threshold with minimum 3 completed jobs baseline.
+- **Why Chosen**: A single standard deviation or low job count produces excessive false positives due to normal artisanal variance in small batches. Requiring minimum 3 completed jobs ensures baseline statistical validity, while the dual 2-stddev + 50 bp condition flags genuine upward loss drift before month-end settlement.
+- **Trade-off**: Artisans with fewer than 3 completed jobs cannot be evaluated for statistical drift until sufficient history accumulates.
+
+---
+
+### Decision 33: Vault Movement Balance Check for Refiner Transfers
+- **Decision**: Enforce that bullion transfers to refiners (`to_refiner`) cannot exceed the currently available vault fine gold balance as of the transfer date. If exceeded, the service raises `InvalidEntryError` which translates to HTTP 400 Bad Request.
+- **Options Considered**:
+  1. Allowing unconstrained refiner transfers, risking negative vault balances.
+  2. Validating available vault stock prior to committing `to_refiner` movements.
+- **Why Chosen**: A workshop cannot dispatch gold bullion to external refiners that it does not physically hold in its vault. Enforcing this check prevents negative inventory positions and maintains vault balance integrity.
+- **Trade-off**: Transfers to refiners must be preceded by bullion deposits, customer old-gold purchases, or karigar returns.
