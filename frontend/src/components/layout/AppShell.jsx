@@ -3,6 +3,7 @@ import { Menu } from "lucide-react";
 import Sidebar from "./Sidebar";
 import OfflineBanner from "../ui/OfflineBanner";
 import PageHeader from "../ui/PageHeader";
+import ErrorBoundary from "../ErrorBoundary";
 
 /**
  * Standard AppShell layout.
@@ -44,14 +45,16 @@ export default function AppShell({ title, subtitle, actions, children }) {
 
           {/* Central container */}
           <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-[960px] w-full mx-auto">
-            {title && (
-              <PageHeader
-                title={title}
-                description={subtitle}
-                action={actions}
-              />
-            )}
-            {children}
+            <ErrorBoundary>
+              {title && (
+                <PageHeader
+                  title={title}
+                  description={subtitle}
+                  action={actions}
+                />
+              )}
+              {children}
+            </ErrorBoundary>
           </main>
         </div>
       </div>

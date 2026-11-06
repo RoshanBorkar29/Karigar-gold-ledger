@@ -8,6 +8,7 @@ import GoldNumber from "../components/GoldNumber";
 import PhotoReader from "../components/PhotoReader";
 import LoadingState from "../components/LoadingState";
 import ErrorState from "../components/ErrorState";
+import EmptyState from "../components/EmptyState";
 import StatusBadge from "../components/ui/StatusBadge";
 import {
   TableContainer,
