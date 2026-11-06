@@ -3,11 +3,8 @@ import {
   AlertTriangle,
   Sparkles,
   ShieldCheck,
-  CheckCircle,
-  XCircle,
+  CheckCircle2,
   RefreshCw,
-  Search,
-  MessageSquare,
   Lock,
 } from "lucide-react";
 import AppShell from "../components/layout/AppShell";
@@ -15,6 +12,9 @@ import GoldNumber from "../components/GoldNumber";
 import LoadingState from "../components/LoadingState";
 import ErrorState from "../components/ErrorState";
 import EmptyState from "../components/EmptyState";
+import Button from "../components/ui/Button";
+import Field from "../components/ui/Field";
+import StatusBadge from "../components/ui/StatusBadge";
 import { useAuth } from "../lib/auth";
 import { api } from "../lib/api";
 import { fmtPurity } from "../lib/format";
@@ -82,7 +82,6 @@ export default function LossAlerts() {
         aiNotes.trim() || undefined
       );
       setAiResponse(res);
-      // Refresh list to update explanation
       fetchAlerts();
     } catch (err) {
       alert("Failed to generate AI explanation: " + err.message);
@@ -112,13 +111,15 @@ export default function LossAlerts() {
 
   if (!isFinanceHead) {
     return (
-      <AppShell title="Access Denied">
-        <div className="card-glass p-8 text-center max-w-md mx-auto my-12 border border-rose-900/60">
-          <Lock className="w-12 h-12 text-rose-500 mx-auto mb-3" />
-          <h2 className="text-lg font-bold text-slate-100">
-            Owner & Finance Head Access Only
+      <AppShell title="Access Restricted">
+        <div className="p-8 text-center max-w-md mx-auto my-12 bg-surface border border-border rounded">
+          <div className="w-10 h-10 rounded-full bg-status-problem-tint text-status-problem flex items-center justify-center mx-auto mb-3">
+            <Lock className="w-5 h-5 stroke-[2]" />
+          </div>
+          <h2 className="text-base font-semibold text-ink m-0">
+            Finance Head Access Only
           </h2>
-          <p className="text-xs text-slate-400 mt-2">
+          <p className="text-xs text-muted mt-2 m-0 leading-relaxed">
             Loss-drift statistical alerts and artisan wastage variance calculations are confidential financial controls restricted to workshop management.
           </p>
         </div>
@@ -131,14 +132,14 @@ export default function LossAlerts() {
 
   return (
     <AppShell
-      title="Loss-Drift Alerts & AI Craft Audit"
-      subtitle="Early warning system flagging abnormal artisan wastage before month-end reconciliation"
+      title="Loss-Drift Alerts & Craft Audit"
+      subtitle="Statistical early-warning system flagging abnormal artisan wastage before month-end reconciliation"
       actions={
         <div className="flex items-center gap-3">
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="input-base text-xs py-2"
+            className="h-9 px-3 bg-surface border border-border rounded text-xs text-ink outline-none focus:border-bronze focus:ring-2 focus:ring-bronze/20"
           >
             <option value="all">All Alerts</option>
             <option value="open">Open Only</option>
@@ -146,62 +147,67 @@ export default function LossAlerts() {
             <option value="dismissed">Dismissed</option>
           </select>
 
-          <button
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={handleTriggerScan}
-            disabled={scanning}
-            className="btn-gold text-xs py-2 px-3"
+            loading={scanning}
+            icon={RefreshCw}
           >
-            <RefreshCw
-              className={`w-3.5 h-3.5 ${scanning ? "animate-spin" : ""}`}
-            />
-            {scanning ? "Scanning Artisans..." : "Run Drift Scan"}
-          </button>
+            Run Drift Scan
+          </Button>
         </div>
       }
     >
-      {/* Metric Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <div className="card-glass p-4 border border-rose-900/40 bg-rose-950/20">
+      {/* Top Metric Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+        <div className="p-4 bg-surface border border-border rounded flex flex-col justify-between">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-rose-300">
+            <span className="text-xs text-muted font-medium">
               Open Anomaly Alerts
             </span>
-            <AlertTriangle className="w-4 h-4 text-rose-400" />
+            <AlertTriangle className="w-4 h-4 text-status-problem stroke-[2]" />
           </div>
-          <div className="mt-2 text-2xl font-bold font-mono text-rose-200">
-            {openCount}
+          <div className="my-2">
+            <span className="font-mono text-xl font-semibold text-status-problem">
+              {openCount}
+            </span>
           </div>
-          <span className="text-[11px] text-rose-300/80">
+          <span className="text-xs text-muted">
             Artisans exceeding baseline + 50 bp / 1 stddev
           </span>
         </div>
 
-        <div className="card-glass p-4 border border-emerald-900/40 bg-emerald-950/20">
+        <div className="p-4 bg-surface border border-border rounded flex flex-col justify-between">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-emerald-300">
+            <span className="text-xs text-muted font-medium">
               Reviewed & Audited
             </span>
-            <CheckCircle className="w-4 h-4 text-emerald-400" />
+            <CheckCircle2 className="w-4 h-4 text-status-ok stroke-[2]" />
           </div>
-          <div className="mt-2 text-2xl font-bold font-mono text-emerald-200">
-            {reviewedCount}
+          <div className="my-2">
+            <span className="font-mono text-xl font-semibold text-ink">
+              {reviewedCount}
+            </span>
           </div>
-          <span className="text-[11px] text-emerald-300/80">
+          <span className="text-xs text-muted">
             Assessed with workshop explanatory notes
           </span>
         </div>
 
-        <div className="card-glass p-4 border border-slate-800">
+        <div className="p-4 bg-surface border border-border rounded flex flex-col justify-between">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-300">
+            <span className="text-xs text-muted font-medium">
               AI Auditor Engine
             </span>
-            <Sparkles className="w-4 h-4 text-yellow-400" />
+            <Sparkles className="w-4 h-4 text-bronze stroke-[2]" />
           </div>
-          <div className="mt-2 text-sm font-semibold text-slate-200">
-            Groq Llama-3.3 70B
+          <div className="my-2">
+            <span className="text-base font-semibold text-ink">
+              Groq Llama-3.3 70B
+            </span>
           </div>
-          <span className="text-[11px] text-slate-400">
+          <span className="text-xs text-muted">
             Objective craftsmanship loss explanations
           </span>
         </div>
@@ -215,179 +221,189 @@ export default function LossAlerts() {
         <EmptyState
           title="All Artisans Operating Within Normal Tolerance"
           description="No abnormal wastage loss drift detected across active karigar workbenches."
-          icon={ShieldCheck}
           actionText="Run Verification Scan"
           onAction={handleTriggerScan}
         />
       ) : (
         <div className="space-y-4">
-          {alerts.map((alert) => (
-            <div
-              key={alert.id}
-              className={`card-glass p-5 border transition ${
-                alert.status === "open"
-                  ? "border-rose-800/80 bg-slate-900/80"
-                  : "border-slate-800 bg-slate-900/40 opacity-80"
-              }`}
-            >
-              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-800">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-rose-500/15 text-rose-400 flex items-center justify-center font-bold font-mono">
-                    {alert.karigar_code}
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
+          <h2 className="text-sm font-semibold text-ink mb-2">
+            For Review ({alerts.length})
+          </h2>
+
+          {alerts.map((alert) => {
+            const diffBp = alert.recent_loss_bp - alert.baseline_mean_bp;
+            const isAiSource = (alert.explanation_source || "").toLowerCase().includes("ai") || (alert.explanation_source || "").toLowerCase().includes("groq");
+
+            return (
+              <div
+                key={alert.id}
+                className="p-5 bg-surface border border-border rounded space-y-4"
+              >
+                {/* Header row */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-border">
+                  <div className="flex items-center gap-3">
+                    <span className="font-mono text-xs px-2 py-0.5 rounded bg-background border border-border text-ink font-semibold">
+                      {alert.karigar_code}
+                    </span>
+                    <h3 className="text-sm font-semibold text-ink m-0">
                       {alert.karigar_name}
-                      <span
-                        className={`badge ${
-                          alert.status === "open"
-                            ? "badge-danger"
-                            : alert.status === "reviewed"
-                            ? "badge-success"
-                            : "badge-neutral"
-                        }`}
-                      >
-                        {alert.status}
-                      </span>
                     </h3>
-                    <p className="text-xs text-slate-400 mt-0.5 font-mono">
-                      Detected: {alert.created_at?.slice(0, 10)}
-                    </p>
+                    <StatusBadge
+                      status={alert.status}
+                      label={alert.status}
+                    />
                   </div>
+
+                  <span className="text-xs text-muted font-mono">
+                    Detected: {alert.created_at?.slice(0, 10)}
+                  </span>
                 </div>
 
-                {/* Variance Metrics Pills */}
-                <div className="flex items-center gap-4 text-xs">
-                  <div className="bg-slate-950 px-3 py-1.5 rounded-lg border border-slate-800 text-center">
-                    <span className="text-[10px] text-slate-400 block">
-                      Recent Job Loss
+                {/* Numbers row: recent loss, usual loss, difference */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3 bg-background border border-border rounded">
+                  <div>
+                    <span className="text-xs text-muted block mb-0.5">
+                      Recent Loss
                     </span>
-                    <span className="font-mono font-bold text-rose-400 text-sm">
-                      {fmtPurity(alert.recent_loss_bp)}%
-                    </span>
+                    <GoldNumber
+                      value={alert.recent_loss_bp}
+                      type="purity"
+                      size="sm"
+                    />
                   </div>
 
-                  <div className="bg-slate-950 px-3 py-1.5 rounded-lg border border-slate-800 text-center">
-                    <span className="text-[10px] text-slate-400 block">
-                      Baseline Average
+                  <div>
+                    <span className="text-xs text-muted block mb-0.5">
+                      Usual Loss
                     </span>
-                    <span className="font-mono font-bold text-slate-300 text-sm">
-                      {fmtPurity(alert.baseline_mean_bp)}%
-                    </span>
+                    <GoldNumber
+                      value={alert.baseline_mean_bp}
+                      type="purity"
+                      size="sm"
+                    />
                   </div>
 
-                  <div className="bg-slate-950 px-3 py-1.5 rounded-lg border border-slate-800 text-center">
-                    <span className="text-[10px] text-slate-400 block">
+                  <div>
+                    <span className="text-xs text-muted block mb-0.5">
+                      Difference
+                    </span>
+                    <GoldNumber
+                      value={diffBp}
+                      type="purity"
+                      size="sm"
+                      isExcess={diffBp > 0}
+                      excessLabel="Exceeds baseline"
+                    />
+                  </div>
+
+                  <div>
+                    <span className="text-xs text-muted block mb-0.5">
                       Sample Size
                     </span>
-                    <span className="font-mono text-slate-300 text-sm">
-                      {alert.sample_size} Jobs
+                    <span className="font-mono text-sm text-ink">
+                      {alert.sample_size} jobs
                     </span>
                   </div>
                 </div>
-              </div>
 
-              {/* Explanation Note */}
-              <div className="mt-4 p-3.5 rounded-lg bg-slate-950 border border-slate-800/80 flex items-start gap-3">
-                <Sparkles className="w-4 h-4 text-yellow-400 shrink-0 mt-0.5" />
-                <div className="flex-1">
+                {/* Explanation text box */}
+                <div className="p-3 bg-background border border-border rounded text-xs space-y-1.5">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-yellow-400">
-                      Craft Audit Analysis
+                    <span className="font-medium text-ink flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-bronze stroke-[2]" />
+                      Craft Analysis Note
                     </span>
-                    <span className="text-[10px] text-slate-500 font-mono uppercase">
-                      Source: {alert.explanation_source || "system"}
+                    <span className="text-[11px] text-muted font-mono uppercase">
+                      Source: {isAiSource ? "AI-written" : "Standard text"}
                     </span>
                   </div>
-                  <p className="text-xs text-slate-300 mt-1 whitespace-pre-line leading-relaxed">
-                    {alert.explanation}
+                  <p className="text-muted leading-relaxed m-0 whitespace-pre-line">
+                    {alert.explanation || "No craft analysis note provided yet."}
                   </p>
                 </div>
-              </div>
 
-              {/* Action Buttons */}
-              <div className="mt-4 flex items-center justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedAlertForAi(alert);
-                    setAiNotes("");
-                    setAiResponse(null);
-                  }}
-                  className="btn-secondary text-xs py-1.5 px-3"
-                >
-                  <Sparkles className="w-3.5 h-3.5 text-yellow-400" />
-                  AI Craft Analysis
-                </button>
+                {/* Actions */}
+                <div className="flex items-center justify-end gap-2 pt-1">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => {
+                      setSelectedAlertForAi(alert);
+                      setAiNotes("");
+                      setAiResponse(null);
+                    }}
+                    icon={Sparkles}
+                  >
+                    AI Craft Analysis
+                  </Button>
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    setReviewAlertTarget(alert);
-                    setReviewStatus("reviewed");
-                    setReviewNote("");
-                  }}
-                  className="btn-gold text-xs py-1.5 px-3"
-                >
-                  <ShieldCheck className="w-3.5 h-3.5" />
-                  Review & Resolve
-                </button>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => {
+                      setReviewAlertTarget(alert);
+                      setReviewStatus("reviewed");
+                      setReviewNote("");
+                    }}
+                    icon={ShieldCheck}
+                  >
+                    Review & Resolve
+                  </Button>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
       {/* AI Explanation Dialog */}
       {selectedAlertForAi && (
-        <div className="fixed inset-0 bg-black/85 flex items-center justify-center p-4 z-50">
-          <div className="card-glass w-full max-w-lg p-6 border border-yellow-500/40">
-            <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-yellow-400" />
+        <div className="fixed inset-0 bg-ink/50 flex items-center justify-center p-4 z-50">
+          <div className="w-full max-w-lg bg-surface p-6 border border-border rounded shadow-lg">
+            <h3 className="text-base font-semibold text-ink flex items-center gap-2 m-0">
+              <Sparkles className="w-4 h-4 text-bronze stroke-[2]" />
               Generate Objective Loss Explanation
             </h3>
-            <p className="text-xs text-slate-400 mt-1">
-              Produce a professional audit note citing exact metrics ({fmtPurity(selectedAlertForAi.recent_loss_bp)}% vs {fmtPurity(selectedAlertForAi.baseline_mean_bp)}%) and potential workshop factors (melting crucible wear, fine filigree setting, etc.).
+            <p className="text-xs text-muted mt-1 m-0">
+              Produce a professional audit note citing exact metrics ({fmtPurity(selectedAlertForAi.recent_loss_bp)}% vs {fmtPurity(selectedAlertForAi.baseline_mean_bp)}%) and craft factors (crucible wear, filigree setting, casting porosity).
             </p>
 
             <div className="mt-4">
-              <label className="block text-xs font-semibold text-slate-300 mb-1">
-                Workshop Context / Floor Observation (Optional)
-              </label>
-              <textarea
-                rows={3}
+              <Field
+                label="Workshop Context / Floor Observation (Optional)"
+                id="aiNotes"
+                type="textarea"
                 value={aiNotes}
                 onChange={(e) => setAiNotes(e.target.value)}
-                placeholder="e.g. Broken crucible during induction melting; recovery crucible ash pending refining."
-                className="input-base text-xs"
+                placeholder="e.g. Broken crucible during melting; crucible ash pending refining recovery."
               />
             </div>
 
             {aiResponse && (
-              <div className="mt-4 p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/30 text-xs">
-                <span className="font-bold text-yellow-400 block mb-1">
+              <div className="mt-4 p-3 rounded bg-status-ok-tint border border-status-ok/20 text-xs">
+                <span className="font-semibold text-status-ok block mb-1">
                   Generated Note ({aiResponse.source}):
                 </span>
-                <p className="text-slate-200">{aiResponse.explanation}</p>
+                <p className="text-ink leading-relaxed m-0">{aiResponse.explanation}</p>
               </div>
             )}
 
-            <div className="mt-6 flex justify-end gap-2">
-              <button
-                type="button"
+            <div className="mt-6 flex justify-end gap-2 pt-2">
+              <Button
+                variant="secondary"
+                size="sm"
                 onClick={() => setSelectedAlertForAi(null)}
-                className="btn-secondary text-xs"
               >
                 Close
-              </button>
-              <button
-                type="button"
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
                 onClick={handleRequestAiExplanation}
-                disabled={aiLoading}
-                className="btn-gold text-xs"
+                loading={aiLoading}
               >
-                {aiLoading ? "Consulting AI Auditor..." : "Generate Explanation"}
-              </button>
+                Generate Explanation
+              </Button>
             </div>
           </div>
         </div>
@@ -395,26 +411,26 @@ export default function LossAlerts() {
 
       {/* Review Dialog */}
       {reviewAlertTarget && (
-        <div className="fixed inset-0 bg-black/85 flex items-center justify-center p-4 z-50">
-          <div className="card-glass w-full max-w-md p-6 border border-slate-700">
-            <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
-              <ShieldCheck className="w-4 h-4 text-yellow-400" />
+        <div className="fixed inset-0 bg-ink/50 flex items-center justify-center p-4 z-50">
+          <div className="w-full max-w-md bg-surface p-6 border border-border rounded shadow-lg">
+            <h3 className="text-base font-semibold text-ink flex items-center gap-2 m-0">
+              <ShieldCheck className="w-4 h-4 text-bronze stroke-[2]" />
               Review Loss Alert: {reviewAlertTarget.karigar_name}
             </h3>
 
             <div className="mt-4 space-y-3">
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                <label className="block text-xs font-medium text-ink mb-1.5">
                   Resolution Decision
                 </label>
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
                     onClick={() => setReviewStatus("reviewed")}
-                    className={`p-2.5 rounded-lg border text-xs font-semibold ${
+                    className={`h-10 px-3 rounded border text-xs font-medium transition cursor-pointer ${
                       reviewStatus === "reviewed"
-                        ? "border-emerald-500 bg-emerald-500/15 text-emerald-300"
-                        : "border-slate-800 bg-slate-900 text-slate-400"
+                        ? "border-status-ok bg-status-ok-tint text-status-ok"
+                        : "border-border bg-background text-muted hover:text-ink"
                     }`}
                   >
                     Mark Reviewed
@@ -422,10 +438,10 @@ export default function LossAlerts() {
                   <button
                     type="button"
                     onClick={() => setReviewStatus("dismissed")}
-                    className={`p-2.5 rounded-lg border text-xs font-semibold ${
+                    className={`h-10 px-3 rounded border text-xs font-medium transition cursor-pointer ${
                       reviewStatus === "dismissed"
-                        ? "border-slate-600 bg-slate-800 text-slate-200"
-                        : "border-slate-800 bg-slate-900 text-slate-400"
+                        ? "border-border bg-background text-ink font-semibold"
+                        : "border-border bg-background text-muted hover:text-ink"
                     }`}
                   >
                     Dismiss Alert
@@ -434,35 +450,33 @@ export default function LossAlerts() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  Reviewer Audit Note (Optional)
-                </label>
-                <textarea
-                  rows={3}
+                <Field
+                  label="Reviewer Audit Note (Optional)"
+                  id="reviewNote"
+                  type="textarea"
                   value={reviewNote}
                   onChange={(e) => setReviewNote(e.target.value)}
                   placeholder="e.g. Artisan verified; excess loss recovered in bench wash filings."
-                  className="input-base text-xs"
                 />
               </div>
             </div>
 
-            <div className="mt-6 flex justify-end gap-2">
-              <button
-                type="button"
+            <div className="mt-6 flex justify-end gap-2 pt-2">
+              <Button
+                variant="secondary"
+                size="sm"
                 onClick={() => setReviewAlertTarget(null)}
-                className="btn-secondary text-xs"
               >
                 Cancel
-              </button>
-              <button
-                type="button"
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
                 onClick={handleSaveReview}
-                disabled={reviewLoading}
-                className="btn-gold text-xs"
+                loading={reviewLoading}
               >
-                {reviewLoading ? "Saving..." : "Confirm Review"}
-              </button>
+                Confirm Review
+              </Button>
             </div>
           </div>
         </div>

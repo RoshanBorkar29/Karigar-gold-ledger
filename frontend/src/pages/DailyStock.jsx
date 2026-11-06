@@ -1,12 +1,7 @@
 import React, { useState, useEffect } from "react";
 import {
-  FileSpreadsheet,
   Download,
   Calendar,
-  Vault,
-  Hammer,
-  Flame,
-  Scale,
   Lock,
   ArrowRightLeft,
   CheckCircle2,
@@ -17,6 +12,17 @@ import AppShell from "../components/layout/AppShell";
 import GoldNumber from "../components/GoldNumber";
 import LoadingState from "../components/LoadingState";
 import ErrorState from "../components/ErrorState";
+import Button from "../components/ui/Button";
+import Field from "../components/ui/Field";
+import StatusBadge from "../components/ui/StatusBadge";
+import {
+  TableContainer,
+  TableHead,
+  TableBody,
+  TableRow,
+  TableCell,
+  TableHeaderCell,
+} from "../components/ui/Table";
 import { useAuth } from "../lib/auth";
 import { api } from "../lib/api";
 import { parseG } from "../lib/format";
@@ -112,13 +118,15 @@ export default function DailyStock() {
 
   if (!isFinanceHead) {
     return (
-      <AppShell title="Access Denied">
-        <div className="card-glass p-8 text-center max-w-md mx-auto my-12 border border-rose-900/60">
-          <Lock className="w-12 h-12 text-rose-500 mx-auto mb-3" />
-          <h2 className="text-lg font-bold text-slate-100">
-            Owner & Finance Head Access Only
+      <AppShell title="Access Restricted">
+        <div className="p-8 text-center max-w-md mx-auto my-12 bg-surface border border-border rounded">
+          <div className="w-10 h-10 rounded-full bg-status-problem-tint text-status-problem flex items-center justify-center mx-auto mb-3">
+            <Lock className="w-5 h-5 stroke-[2]" />
+          </div>
+          <h2 className="text-base font-semibold text-ink m-0">
+            Finance Head Access Only
           </h2>
-          <p className="text-xs text-slate-400 mt-2">
+          <p className="text-xs text-muted mt-2 m-0 leading-relaxed">
             Consolidated daily bullion stock position and Tally ERP financial exports are confidential controls restricted to workshop management.
           </p>
         </div>
@@ -128,28 +136,33 @@ export default function DailyStock() {
 
   return (
     <AppShell
-      title="Daily Bullion Stock Statement"
-      subtitle="Consolidated fine-gold stock position across vault, active artisan workbenches, and external refiners"
+      title="Daily Bullion Stock Position"
+      subtitle="Consolidated fine-gold stock statement across vault, active artisan workbenches, and external refiners"
       actions={
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
-            <Calendar className="w-4 h-4 text-slate-400" />
+            <label htmlFor="asOfDate" className="text-xs text-muted font-medium select-none">
+              As of:
+            </label>
             <input
+              id="asOfDate"
               type="date"
               value={asOfDate}
               onChange={(e) => setAsOfDate(e.target.value)}
-              className="input-base text-xs font-mono py-1.5"
+              className="h-9 px-3 bg-surface border border-border rounded text-xs font-mono text-ink outline-none focus:border-bronze focus:ring-2 focus:ring-bronze/20"
             />
           </div>
 
-          <button
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={handleExportCsv}
-            disabled={exporting || !statement}
-            className="btn-gold text-xs py-2 px-3"
+            disabled={!statement}
+            loading={exporting}
+            icon={Download}
           >
-            <Download className="w-3.5 h-3.5" />
-            {exporting ? "Generating CSV..." : "Export Tally CSV"}
-          </button>
+            Export Tally CSV
+          </Button>
         </div>
       }
     >
@@ -159,257 +172,258 @@ export default function DailyStock() {
         <ErrorState message={error} onRetry={fetchStock} />
       ) : statement ? (
         <div className="space-y-6">
-          {/* 4 Macro Stock Position Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            {/* 1. Vault */}
-            <div className="card-glass p-5 border border-yellow-500/30 bg-slate-900/70">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-400">
-                  Main Workshop Vault
-                </span>
-                <Vault className="w-5 h-5 text-yellow-400" />
-              </div>
-              <div className="mt-3">
+          {/* 4 Plain Figures at the top */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="p-4 bg-surface border border-border rounded flex flex-col justify-between">
+              <span className="text-xs text-muted font-medium">
+                In Vault
+              </span>
+              <div className="my-2">
                 <GoldNumber
                   value={statement.vault_fine_mg}
                   size="xl"
-                  highlight="gold"
+                  isKeyBalance
                 />
               </div>
-              <span className="text-[11px] text-slate-500 font-mono block mt-1">
-                {statement.vault_fine_mg.toLocaleString()} mg pure bullion
+              <span className="text-xs text-muted">
+                Main workshop strongroom
               </span>
             </div>
 
-            {/* 2. In Hands of Karigars */}
-            <div className="card-glass p-5 border border-slate-800 bg-slate-900/40">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-400">
-                  With Artisans (Work in Progress)
-                </span>
-                <Hammer className="w-5 h-5 text-amber-400" />
-              </div>
-              <div className="mt-3">
+            <div className="p-4 bg-surface border border-border rounded flex flex-col justify-between">
+              <span className="text-xs text-muted font-medium">
+                With Karigars
+              </span>
+              <div className="my-2">
                 <GoldNumber
                   value={statement.karigars_fine_mg}
                   size="xl"
-                  highlight="warning"
+                  isKeyBalance
                 />
               </div>
-              <span className="text-[11px] text-slate-500 font-mono block mt-1">
-                {statement.karigars_fine_mg.toLocaleString()} mg on benches
+              <span className="text-xs text-muted">
+                Work-in-progress on artisan benches
               </span>
             </div>
 
-            {/* 3. At Refiner */}
-            <div className="card-glass p-5 border border-slate-800 bg-slate-900/40">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-400">
-                  At External Refiner
-                </span>
-                <Flame className="w-5 h-5 text-rose-400" />
-              </div>
-              <div className="mt-3">
+            <div className="p-4 bg-surface border border-border rounded flex flex-col justify-between">
+              <span className="text-xs text-muted font-medium">
+                At Refiner
+              </span>
+              <div className="my-2">
                 <GoldNumber
                   value={statement.refiner_fine_mg}
                   size="xl"
-                  highlight={statement.refiner_fine_mg > 0 ? "warning" : null}
+                  isKeyBalance
                 />
               </div>
-              <span className="text-[11px] text-slate-500 font-mono block mt-1">
-                {statement.refiner_fine_mg.toLocaleString()} mg refining
+              <span className="text-xs text-muted">
+                Scrap recovery lots pending return
               </span>
             </div>
 
-            {/* 4. Total Bullion Position */}
-            <div className="card-glass p-5 border border-yellow-500/50 bg-gradient-to-br from-yellow-500/10 via-slate-900 to-slate-950">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-yellow-400 uppercase tracking-wider">
-                  Total Gold Stock
-                </span>
-                <Scale className="w-5 h-5 text-yellow-400" />
-              </div>
-              <div className="mt-3">
+            <div className="p-4 bg-surface border border-border rounded flex flex-col justify-between">
+              <span className="text-xs text-muted font-medium">
+                Total Bullion Stock
+              </span>
+              <div className="my-2">
                 <GoldNumber
                   value={statement.total_fine_mg}
                   size="xl"
-                  highlight="gold"
+                  isKeyBalance
+                  className="text-bronze"
                 />
               </div>
-              <span className="text-[11px] text-yellow-300/80 font-mono block mt-1">
-                {statement.total_fine_mg.toLocaleString()} mg total pure
+              <span className="text-xs text-muted">
+                Consolidated pure gold inventory
               </span>
             </div>
           </div>
 
-          {/* Vault Bullion Movement Form (Finance Head Only) */}
-          <div className="card-glass p-5 border border-slate-800 bg-slate-900/60 rounded-lg space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+          {/* Vault Bullion Movement Form */}
+          <div className="p-5 bg-surface border border-border rounded space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-border">
               <div className="flex items-center gap-2">
-                <ArrowRightLeft className="w-4 h-4 text-yellow-400" />
-                <h3 className="text-sm font-semibold text-slate-100">
+                <ArrowRightLeft className="w-4 h-4 text-bronze stroke-[2]" />
+                <h3 className="text-sm font-semibold text-ink m-0">
                   Record Vault Bullion Movement
                 </h3>
               </div>
-              <span className="text-xs text-slate-400 font-mono">
+              <span className="text-xs text-muted font-mono">
                 Finance Operation
               </span>
             </div>
 
             {movementSuccess && (
-              <div className="p-3 rounded bg-emerald-950/40 border border-emerald-800 text-emerald-300 text-xs flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+              <div className="p-3 rounded bg-status-ok-tint border border-status-ok/20 text-status-ok text-xs flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 shrink-0 text-status-ok stroke-[2]" />
                 <span>{movementSuccess}</span>
               </div>
             )}
 
             {movementError && (
-              <div className="p-3 rounded bg-rose-950/40 border border-rose-800 text-rose-300 text-xs flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+              <div className="p-3 rounded bg-status-problem-tint border border-status-problem/20 text-status-problem text-xs flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 text-status-problem stroke-[2]" />
                 <span>{movementError}</span>
               </div>
             )}
 
-            <form onSubmit={handleRecordMovement} className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                  Movement Kind
-                </label>
-                <select
-                  value={movementKind}
-                  onChange={(e) => setMovementKind(e.target.value)}
-                  className="input-base"
-                >
-                  <option value="bullion_in">Bullion In (Vault Deposit)</option>
-                  <option value="to_refiner">To Refiner (Scrap Recovery)</option>
-                  <option value="from_refiner">From Refiner (Pure Gold In)</option>
-                </select>
-              </div>
+            <form onSubmit={handleRecordMovement} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label htmlFor="movementKind" className="block text-sm font-medium text-ink mb-1.5">
+                    Movement Kind <span className="text-status-problem">*</span>
+                  </label>
+                  <select
+                    id="movementKind"
+                    value={movementKind}
+                    onChange={(e) => setMovementKind(e.target.value)}
+                    className="w-full h-11 px-3 bg-surface border border-border rounded text-sm text-ink outline-none focus:border-bronze focus:ring-2 focus:ring-bronze/20"
+                  >
+                    <option value="bullion_in">Bullion In (Vault Deposit)</option>
+                    <option value="to_refiner">To Refiner (Scrap Recovery)</option>
+                    <option value="from_refiner">From Refiner (Pure Gold In)</option>
+                  </select>
+                </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                  Fine Weight (Grams)
-                </label>
-                <div className="relative">
-                  <input
-                    type="text"
+                <div>
+                  <Field
+                    label="Fine Weight"
+                    id="movementWeight"
                     required
                     placeholder="100.000"
                     value={movementWeightInput}
                     onChange={(e) => setMovementWeightInput(e.target.value)}
-                    className="input-base font-mono pr-8"
+                    helperText="In grams (up to 3 decimals)"
                   />
-                  <span className="absolute right-3 top-2.5 text-xs text-slate-500 font-mono">
-                    g
-                  </span>
+                </div>
+
+                <div>
+                  <Field
+                    label="Entry Date"
+                    id="movementDate"
+                    type="date"
+                    required
+                    value={movementDate}
+                    onChange={(e) => setMovementDate(e.target.value)}
+                  />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                  Entry Date
-                </label>
-                <input
-                  type="date"
-                  required
-                  value={movementDate}
-                  onChange={(e) => setMovementDate(e.target.value)}
-                  className="input-base font-mono"
-                />
-              </div>
-
-              <div>
-                <button
-                  type="submit"
-                  disabled={submittingMovement}
-                  className="w-full btn-gold py-2.5 text-xs flex items-center justify-center gap-2"
-                >
-                  <PlusCircle className="w-4 h-4" />
-                  {submittingMovement ? "Writing to Vault..." : "Commit Movement"}
-                </button>
-              </div>
-
-              <div className="md:col-span-4">
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                  Reference Note (Optional)
-                </label>
-                <input
-                  type="text"
+                <Field
+                  label="Reference Note (Optional)"
+                  id="movementNote"
                   placeholder="e.g. MMTC Bullion invoice #8841 or refinery batch lot #12"
                   value={movementNote}
                   onChange={(e) => setMovementNote(e.target.value)}
-                  className="input-base text-xs"
                 />
+              </div>
+
+              <div className="flex justify-end pt-2">
+                <Button
+                  type="submit"
+                  variant="primary"
+                  size="md"
+                  loading={submittingMovement}
+                  icon={PlusCircle}
+                >
+                  Commit Vault Movement
+                </Button>
               </div>
             </form>
           </div>
 
-          {/* Breakdown Table of Gold with Karigars */}
-          <div className="card-glass overflow-hidden">
-            <div className="p-4 border-b border-slate-800 flex items-center justify-between">
+          {/* Workbench Stock Breakdown Table */}
+          <div>
+            <div className="flex items-center justify-between mb-3">
               <div>
-                <h3 className="text-sm font-semibold text-slate-100">
+                <h3 className="text-sm font-semibold text-ink m-0">
                   Artisan Workbench Stock Breakdown
                 </h3>
-                <p className="text-xs text-slate-400">
+                <p className="text-xs text-muted mt-0.5 m-0">
                   Fine gold distributed across active goldsmith workbenches as of {asOfDate}
                 </p>
               </div>
-              <span className="badge badge-gold font-mono text-xs">
+              <span className="text-xs text-muted font-mono">
                 {statement.karigars_breakdown?.length || 0} Karigars
               </span>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Artisan Code</th>
-                    <th>Full Name</th>
-                    <th>Total Fine Gold Issued</th>
-                    <th>Total Fine Gold Returned</th>
-                    <th>Current Workbench Balance</th>
-                    <th>Open Jobs</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {statement.karigars_breakdown?.map((row) => (
-                    <tr key={row.karigar_id}>
-                      <td className="font-mono font-bold text-yellow-400">
-                        {row.karigar_code}
-                      </td>
-                      <td className="font-medium text-slate-200">
-                        {row.karigar_name}
-                      </td>
-                      <td>
-                        <GoldNumber value={row.total_issued_fine_mg} />
-                      </td>
-                      <td>
-                        <GoldNumber
-                          value={row.total_returned_fine_mg}
-                          highlight="positive"
-                        />
-                      </td>
-                      <td className="font-bold">
-                        <GoldNumber
-                          value={row.net_outstanding_fine_mg}
-                          highlight={
-                            row.net_outstanding_fine_mg > 0
-                              ? "warning"
-                              : "positive"
-                          }
-                        />
-                      </td>
-                      <td>
-                        <span className="badge badge-neutral">
-                          {row.open_jobs_count} Open
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <TableContainer>
+              <TableHead>
+                <tr>
+                  <TableHeaderCell>Artisan Code</TableHeaderCell>
+                  <TableHeaderCell>Full Name</TableHeaderCell>
+                  <TableHeaderCell align="right">Total Issued</TableHeaderCell>
+                  <TableHeaderCell align="right">Total Returned</TableHeaderCell>
+                  <TableHeaderCell align="right">Current Balance</TableHeaderCell>
+                  <TableHeaderCell align="center">Open Jobs</TableHeaderCell>
+                </tr>
+              </TableHead>
+              <TableBody>
+                {statement.karigars_breakdown?.map((row) => (
+                  <TableRow key={row.karigar_id}>
+                    <TableCell className="font-mono font-medium text-ink">
+                      {row.karigar_code}
+                    </TableCell>
+                    <TableCell className="font-medium text-ink">
+                      {row.karigar_name}
+                    </TableCell>
+                    <TableCell align="right">
+                      <GoldNumber value={row.total_issued_fine_mg} align="right" />
+                    </TableCell>
+                    <TableCell align="right">
+                      <GoldNumber value={row.total_returned_fine_mg} align="right" />
+                    </TableCell>
+                    <TableCell align="right">
+                      <GoldNumber
+                        value={row.net_outstanding_fine_mg}
+                        size="base"
+                        align="right"
+                        isNegative={row.net_outstanding_fine_mg < 0}
+                        negativeLabel="Surplus"
+                      />
+                    </TableCell>
+                    <TableCell align="center">
+                      <StatusBadge
+                        status={row.open_jobs_count > 0 ? "open" : "ok"}
+                        label={`${row.open_jobs_count} open`}
+                      />
+                    </TableCell>
+                  </TableRow>
+                ))}
+
+                {/* Total Row */}
+                <TableRow isTotal>
+                  <TableCell colSpan={2} className="font-semibold text-ink">
+                    Total In Artisans Custody
+                  </TableCell>
+                  <TableCell align="right">
+                    <GoldNumber
+                      value={statement.karigars_breakdown?.reduce((acc, r) => acc + (r.total_issued_fine_mg || 0), 0) || 0}
+                      align="right"
+                    />
+                  </TableCell>
+                  <TableCell align="right">
+                    <GoldNumber
+                      value={statement.karigars_breakdown?.reduce((acc, r) => acc + (r.total_returned_fine_mg || 0), 0) || 0}
+                      align="right"
+                    />
+                  </TableCell>
+                  <TableCell align="right">
+                    <GoldNumber
+                      value={statement.karigars_fine_mg}
+                      size="base"
+                      align="right"
+                    />
+                  </TableCell>
+                  <TableCell align="center" className="text-xs text-muted font-mono">
+                    {statement.karigars_breakdown?.reduce((acc, r) => acc + (r.open_jobs_count || 0), 0) || 0} open
+                  </TableCell>
+                </TableRow>
+              </TableBody>
+            </TableContainer>
           </div>
         </div>
       ) : null}
