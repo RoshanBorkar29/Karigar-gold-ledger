@@ -1,7 +1,10 @@
 """Application settings loaded from environment variables using Pydantic Settings."""
 
+from pathlib import Path
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
 
 class Settings(BaseSettings):
@@ -48,7 +51,7 @@ class Settings(BaseSettings):
     SEED_FINANCE_PASSWORD: str = "Finance@123"
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=(".env", "../.env", str(_REPO_ROOT / ".env"), str(_REPO_ROOT / "backend" / ".env")),
         env_file_encoding="utf-8",
         extra="ignore",
     )
