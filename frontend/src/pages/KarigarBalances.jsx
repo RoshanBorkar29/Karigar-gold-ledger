@@ -1,23 +1,31 @@
 import React, { useState, useEffect } from "react";
 import {
-  Scale,
   Calendar,
   Eye,
-  CheckCircle2,
-  XCircle,
-  AlertTriangle,
   RotateCcw,
-  ChevronRight,
   X,
   Lock,
+  ArrowRight,
+  SlidersHorizontal,
 } from "lucide-react";
 import AppShell from "../components/layout/AppShell";
 import GoldNumber from "../components/GoldNumber";
 import LoadingState from "../components/LoadingState";
 import ErrorState from "../components/ErrorState";
 import EmptyState from "../components/EmptyState";
+import Button from "../components/ui/Button";
+import Field from "../components/ui/Field";
+import StatusBadge from "../components/ui/StatusBadge";
+import {
+  TableContainer,
+  TableHead,
+  TableBody,
+  TableRow,
+  TableCell,
+  TableHeaderCell,
+} from "../components/ui/Table";
 import { api } from "../lib/api";
-import { fmtG, fmtPurity } from "../lib/format";
+import { fmtPurity } from "../lib/format";
 
 export default function KarigarBalances() {
   const [summaryList, setSummaryList] = useState([]);
@@ -27,7 +35,7 @@ export default function KarigarBalances() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Detail Modal State
+  // Detail Drawer State
   const [selectedKarigar, setSelectedKarigar] = useState(null);
   const [karigarDetail, setKarigarDetail] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -77,7 +85,6 @@ export default function KarigarBalances() {
     }
     try {
       await api.closeJob(jobId);
-      // Refresh
       if (selectedKarigar) {
         const detail = await api.getKarigarDetail(
           selectedKarigar.karigar_id,
@@ -106,7 +113,6 @@ export default function KarigarBalances() {
       }
       setVoidTarget(null);
       setVoidReason("");
-      // Refresh
       if (selectedKarigar) {
         const detail = await api.getKarigarDetail(
           selectedKarigar.karigar_id,
@@ -129,71 +135,76 @@ export default function KarigarBalances() {
 
   return (
     <AppShell
-      title="Karigar Running Gold Balances"
+      title="Karigar Gold Balances"
       subtitle="Artisan fine-gold account position, running liability, and per-job settlements"
       actions={
         <div className="flex items-center gap-2">
-          <Calendar className="w-4 h-4 text-slate-400" />
+          <label htmlFor="asOfDate" className="text-xs text-muted font-medium select-none">
+            As of:
+          </label>
           <input
+            id="asOfDate"
             type="date"
             value={asOfDate}
             onChange={(e) => setAsOfDate(e.target.value)}
-            className="input-base text-xs font-mono py-1.5"
+            className="h-9 px-3 bg-surface border border-border rounded text-xs font-mono text-ink outline-none focus:border-bronze focus:ring-2 focus:ring-bronze/20"
           />
         </div>
       }
     >
       {/* Top Aggregation Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <div className="card-glass p-4 border border-yellow-500/30 bg-slate-900/60">
-          <span className="text-xs font-semibold text-slate-400 block">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div className="p-4 bg-surface border border-border rounded flex flex-col justify-between">
+          <span className="text-xs text-muted font-medium">
             Total Karigar Liability
           </span>
-          <div className="mt-1">
+          <div className="my-2">
             <GoldNumber
               value={totalOutstandingMg}
               size="xl"
-              highlight="gold"
+              isKeyBalance
             />
           </div>
-          <span className="text-[11px] text-slate-500 font-mono">
-            {totalOutstandingMg.toLocaleString()} mg pure gold with karigars
+          <span className="text-xs text-muted">
+            Pure gold currently in artisan custody
           </span>
         </div>
 
-        <div className="card-glass p-4 border border-slate-800">
-          <span className="text-xs font-semibold text-slate-400 block">
+        <div className="p-4 bg-surface border border-border rounded flex flex-col justify-between">
+          <span className="text-xs text-muted font-medium">
             Total Gold Issued
           </span>
-          <div className="mt-1">
-            <GoldNumber value={totalIssuedMg} size="lg" />
+          <div className="my-2">
+            <GoldNumber value={totalIssuedMg} size="base" />
           </div>
-          <span className="text-[11px] text-slate-500 font-mono">
-            Accumulated issued bullion
+          <span className="text-xs text-muted">
+            Accumulated fine gold issued
           </span>
         </div>
 
-        <div className="card-glass p-4 border border-slate-800">
-          <span className="text-xs font-semibold text-slate-400 block">
+        <div className="p-4 bg-surface border border-border rounded flex flex-col justify-between">
+          <span className="text-xs text-muted font-medium">
             Total Gold Returned
           </span>
-          <div className="mt-1">
-            <GoldNumber value={totalReturnedMg} size="lg" highlight="positive" />
+          <div className="my-2">
+            <GoldNumber value={totalReturnedMg} size="base" />
           </div>
-          <span className="text-[11px] text-slate-500 font-mono">
-            Jewellery + scrap + filings
+          <span className="text-xs text-muted">
+            Finished ornaments & recovered scrap
           </span>
         </div>
 
-        <div className="card-glass p-4 border border-slate-800">
-          <span className="text-xs font-semibold text-slate-400 block">
+        <div className="p-4 bg-surface border border-border rounded flex flex-col justify-between">
+          <span className="text-xs text-muted font-medium">
             Active Artisans
           </span>
-          <div className="mt-1 text-xl font-bold font-mono text-slate-200">
-            {summaryList.length}
+          <div className="my-2">
+            <span className="font-mono text-xl font-semibold text-ink">
+              {summaryList.length}
+            </span>
           </div>
-          <span className="text-[11px] text-slate-500">
-            Registered goldsmiths
+          <span className="text-xs text-muted">
+            Goldsmiths on record
           </span>
         </div>
       </div>
@@ -208,268 +219,297 @@ export default function KarigarBalances() {
           description="No issues or receipts recorded as of this date."
         />
       ) : (
-        <div className="card-glass overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Code</th>
-                  <th>Karigar Name</th>
-                  <th>Total Issued</th>
-                  <th>Total Returned</th>
-                  <th>Net Outstanding Liability</th>
-                  <th>Open Jobs</th>
-                  <th className="text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {summaryList.map((row) => (
-                  <tr key={row.karigar_id}>
-                    <td className="font-mono font-bold text-yellow-400">
-                      {row.karigar_code}
-                    </td>
-                    <td className="font-medium text-slate-200">
-                      {row.karigar_name}
-                    </td>
-                    <td>
-                      <GoldNumber value={row.total_issued_fine_mg} />
-                    </td>
-                    <td>
-                      <GoldNumber
-                        value={row.total_returned_fine_mg}
-                        highlight="positive"
-                      />
-                    </td>
-                    <td>
-                      <GoldNumber
-                        value={row.net_outstanding_fine_mg}
-                        size="md"
-                        highlight={
-                          row.net_outstanding_fine_mg > 0 ? "warning" : "positive"
-                        }
-                      />
-                    </td>
-                    <td>
-                      <span className="badge badge-neutral">
-                        {row.open_jobs_count} Open
-                      </span>
-                    </td>
-                    <td className="text-right">
-                      <button
-                        onClick={() => handleOpenDetail(row)}
-                        className="btn-secondary text-xs py-1.5 px-3"
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                        Detailed Ledger
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <TableContainer>
+          <TableHead>
+            <tr>
+              <TableHeaderCell>Code</TableHeaderCell>
+              <TableHeaderCell>Karigar Name</TableHeaderCell>
+              <TableHeaderCell align="right">Total Issued</TableHeaderCell>
+              <TableHeaderCell align="right">Total Returned</TableHeaderCell>
+              <TableHeaderCell align="right">Net Outstanding Balance</TableHeaderCell>
+              <TableHeaderCell align="center">Open Jobs</TableHeaderCell>
+              <TableHeaderCell align="right">Action</TableHeaderCell>
+            </tr>
+          </TableHead>
+          <TableBody>
+            {summaryList.map((row) => (
+              <TableRow
+                key={row.karigar_id}
+                onClick={() => handleOpenDetail(row)}
+              >
+                <TableCell className="font-mono font-medium text-ink">
+                  {row.karigar_code}
+                </TableCell>
+                <TableCell className="font-medium text-ink">
+                  {row.karigar_name}
+                </TableCell>
+                <TableCell align="right">
+                  <GoldNumber value={row.total_issued_fine_mg} align="right" />
+                </TableCell>
+                <TableCell align="right">
+                  <GoldNumber value={row.total_returned_fine_mg} align="right" />
+                </TableCell>
+                <TableCell align="right">
+                  <GoldNumber
+                    value={row.net_outstanding_fine_mg}
+                    size="base"
+                    align="right"
+                    isNegative={row.net_outstanding_fine_mg < 0}
+                    negativeLabel="Artisan surplus"
+                  />
+                </TableCell>
+                <TableCell align="center">
+                  <StatusBadge
+                    status={row.open_jobs_count > 0 ? "open" : "closed"}
+                    label={`${row.open_jobs_count} open`}
+                  />
+                </TableCell>
+                <TableCell align="right">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleOpenDetail(row);
+                    }}
+                    icon={Eye}
+                  >
+                    Ledger
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ))}
+
+            {/* Total Summary Row */}
+            <TableRow isTotal>
+              <TableCell colSpan={2} className="font-semibold text-ink">
+                Total Workshop Balance
+              </TableCell>
+              <TableCell align="right">
+                <GoldNumber value={totalIssuedMg} align="right" />
+              </TableCell>
+              <TableCell align="right">
+                <GoldNumber value={totalReturnedMg} align="right" />
+              </TableCell>
+              <TableCell align="right">
+                <GoldNumber
+                  value={totalOutstandingMg}
+                  size="base"
+                  align="right"
+                  isNegative={totalOutstandingMg < 0}
+                />
+              </TableCell>
+              <TableCell align="center" className="text-xs text-muted font-mono">
+                {summaryList.reduce((acc, r) => acc + (r.open_jobs_count || 0), 0)} open
+              </TableCell>
+              <TableCell />
+            </TableRow>
+          </TableBody>
+        </TableContainer>
       )}
 
-      {/* Karigar Detailed Ledger Modal */}
+      {/* Karigar Detailed Ledger Drawer / Modal */}
       {selectedKarigar && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50 overflow-y-auto">
-          <div className="card-glass w-full max-w-5xl p-6 border border-slate-700 max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-800">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-yellow-500/20 text-yellow-400 flex items-center justify-center font-bold">
-                  {selectedKarigar.karigar_code}
+        <div className="fixed inset-0 bg-ink/40 z-50 flex justify-end">
+          <div
+            className="fixed inset-0"
+            onClick={() => setSelectedKarigar(null)}
+          />
+          <div className="relative w-full max-w-4xl bg-surface h-full shadow-lg border-l border-border flex flex-col z-10 overflow-hidden">
+            {/* Drawer Header */}
+            <div className="p-6 border-b border-border flex items-center justify-between shrink-0 bg-surface">
+              <div>
+                <div className="flex items-center gap-3">
+                  <span className="font-mono text-sm px-2 py-0.5 rounded bg-background border border-border text-ink font-semibold">
+                    {selectedKarigar.karigar_code}
+                  </span>
+                  <h2 className="text-xl font-semibold text-ink m-0">
+                    {selectedKarigar.karigar_name}
+                  </h2>
                 </div>
-                <div>
-                  <h3 className="text-base font-bold text-slate-100">
-                    {selectedKarigar.karigar_name} — Detailed Ledger Audit
-                  </h3>
-                  <p className="text-xs text-slate-400 font-mono">
-                    Audit as of {asOfDate}
-                  </p>
-                </div>
+                <p className="text-xs text-muted mt-1 m-0">
+                  Detailed ledger & work order audit as of {asOfDate}
+                </p>
               </div>
               <button
+                type="button"
                 onClick={() => setSelectedKarigar(null)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"
+                className="w-9 h-9 rounded flex items-center justify-center text-muted hover:text-ink hover:bg-background transition"
+                aria-label="Close drawer"
               >
-                <X className="w-5 h-5" />
+                <X className="w-5 h-5 stroke-[1.75]" />
               </button>
             </div>
 
+            {/* Drawer Content */}
             {detailLoading || !karigarDetail ? (
-              <div className="py-12">
+              <div className="flex-1 p-6">
                 <LoadingState message="Loading work orders and settlement records..." />
               </div>
             ) : (
-              <div className="overflow-y-auto space-y-6 pt-4 pr-1">
-                {/* 1. Job Settlements Table */}
+              <div className="flex-1 overflow-y-auto p-6 space-y-8">
+                {/* 1. Job Settlements Section */}
                 <div>
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">
-                    Work Order Settlements ({karigarDetail.jobs.length})
-                  </h4>
-                  <div className="border border-slate-800 rounded-lg overflow-hidden">
-                    <table className="data-table">
-                      <thead>
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-sm font-semibold text-ink m-0">
+                      Work Order Settlements ({karigarDetail.jobs.length})
+                    </h3>
+                  </div>
+
+                  {karigarDetail.jobs.length === 0 ? (
+                    <div className="p-4 bg-background border border-border rounded text-xs text-muted text-center">
+                      No jobs recorded for this artisan.
+                    </div>
+                  ) : (
+                    <TableContainer>
+                      <TableHead>
                         <tr>
-                          <th>Job No</th>
-                          <th>Category</th>
-                          <th>Wastage %</th>
-                          <th>Issued</th>
-                          <th>Returned</th>
-                          <th>Allowed Wastage</th>
-                          <th>Excess Loss</th>
-                          <th>Net Outstanding</th>
-                          <th>Status</th>
-                          <th className="text-right">Action</th>
+                          <TableHeaderCell>Job No</TableHeaderCell>
+                          <TableHeaderCell>Category</TableHeaderCell>
+                          <TableHeaderCell align="right">Wastage %</TableHeaderCell>
+                          <TableHeaderCell align="right">Issued</TableHeaderCell>
+                          <TableHeaderCell align="right">Returned</TableHeaderCell>
+                          <TableHeaderCell align="right">Allowed</TableHeaderCell>
+                          <TableHeaderCell align="right">Excess</TableHeaderCell>
+                          <TableHeaderCell align="right">Outstanding</TableHeaderCell>
+                          <TableHeaderCell align="center">Status</TableHeaderCell>
+                          <TableHeaderCell align="right">Action</TableHeaderCell>
                         </tr>
-                      </thead>
-                      <tbody>
+                      </TableHead>
+                      <TableBody>
                         {karigarDetail.jobs.map((job) => {
                           const s = job.settlement;
                           return (
-                            <tr key={job.job_id}>
-                              <td className="font-mono font-bold text-yellow-400">
+                            <TableRow key={job.job_id}>
+                              <TableCell className="font-mono font-medium text-ink">
                                 {job.job_no}
-                              </td>
-                              <td className="text-xs text-slate-300">
+                              </TableCell>
+                              <TableCell className="text-xs text-ink">
                                 {job.category_name}
-                              </td>
-                              <td className="font-mono text-xs text-slate-400">
+                              </TableCell>
+                              <TableCell align="right" className="font-mono text-xs text-muted">
                                 {fmtPurity(job.wastage_bp)}%
-                              </td>
-                              <td>
-                                <GoldNumber value={s.issued_fine_mg} />
-                              </td>
-                              <td>
-                                <GoldNumber
-                                  value={s.returned_mg}
-                                  highlight="positive"
-                                />
-                              </td>
-                              <td>
-                                <GoldNumber value={s.allowed_mg} />
-                              </td>
-                              <td>
+                              </TableCell>
+                              <TableCell align="right">
+                                <GoldNumber value={s.issued_fine_mg} align="right" />
+                              </TableCell>
+                              <TableCell align="right">
+                                <GoldNumber value={s.returned_mg} align="right" />
+                              </TableCell>
+                              <TableCell align="right">
+                                <GoldNumber value={s.allowed_mg} align="right" />
+                              </TableCell>
+                              <TableCell align="right">
                                 <GoldNumber
                                   value={s.excess_mg}
-                                  highlight={
-                                    s.excess_mg > 0 ? "negative" : null
-                                  }
+                                  align="right"
+                                  isExcess={s.excess_mg > 0}
                                 />
-                              </td>
-                              <td>
+                              </TableCell>
+                              <TableCell align="right">
                                 <GoldNumber
                                   value={s.outstanding_mg}
-                                  highlight={
-                                    s.outstanding_mg > 0 ? "warning" : "positive"
-                                  }
+                                  align="right"
+                                  isNegative={s.outstanding_mg < 0}
                                 />
-                              </td>
-                              <td>
-                                <span
-                                  className={`badge ${
-                                    job.status === "closed"
-                                      ? "badge-neutral"
-                                      : "badge-success"
-                                  }`}
-                                >
-                                  {job.status}
-                                </span>
-                              </td>
-                              <td className="text-right">
+                              </TableCell>
+                              <TableCell align="center">
+                                <StatusBadge
+                                  status={job.status}
+                                  label={job.status}
+                                />
+                              </TableCell>
+                              <TableCell align="right">
                                 {job.status === "open" && (
-                                  <button
+                                  <Button
+                                    variant="secondary"
+                                    size="sm"
                                     onClick={() => handleCloseJob(job.job_id)}
-                                    className="btn-secondary text-[11px] py-1 px-2.5"
                                   >
                                     Close Job
-                                  </button>
+                                  </Button>
                                 )}
-                              </td>
-                            </tr>
+                              </TableCell>
+                            </TableRow>
                           );
                         })}
-                      </tbody>
-                    </table>
-                  </div>
+                      </TableBody>
+                    </TableContainer>
+                  )}
                 </div>
 
-                {/* 2. Chronological Transactions Table */}
+                {/* 2. Chronological Transactions Section */}
                 <div>
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">
-                    Append-Only Ledger Transactions
-                  </h4>
-                  <div className="border border-slate-800 rounded-lg overflow-hidden">
-                    <table className="data-table">
-                      <thead>
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-sm font-semibold text-ink m-0">
+                      Append-Only Transactions ({karigarDetail.transactions.length})
+                    </h3>
+                  </div>
+
+                  {karigarDetail.transactions.length === 0 ? (
+                    <div className="p-4 bg-background border border-border rounded text-xs text-muted text-center">
+                      No transactions recorded.
+                    </div>
+                  ) : (
+                    <TableContainer>
+                      <TableHead>
                         <tr>
-                          <th>Txn ID</th>
-                          <th>Date</th>
-                          <th>Type</th>
-                          <th>Gross Wt</th>
-                          <th>Purity</th>
-                          <th>Fine Gold</th>
-                          <th>HUID / Detail</th>
-                          <th>Status</th>
-                          <th className="text-right">Action</th>
+                          <TableHeaderCell>Txn ID</TableHeaderCell>
+                          <TableHeaderCell>Date</TableHeaderCell>
+                          <TableHeaderCell align="center">Type</TableHeaderCell>
+                          <TableHeaderCell align="right">Gross Wt</TableHeaderCell>
+                          <TableHeaderCell align="right">Purity</TableHeaderCell>
+                          <TableHeaderCell align="right">Fine Gold</TableHeaderCell>
+                          <TableHeaderCell>HUID / Note</TableHeaderCell>
+                          <TableHeaderCell align="center">Status</TableHeaderCell>
+                          <TableHeaderCell align="right">Action</TableHeaderCell>
                         </tr>
-                      </thead>
-                      <tbody>
+                      </TableHead>
+                      <TableBody>
                         {karigarDetail.transactions.map((txn) => (
-                          <tr
+                          <TableRow
                             key={txn.txn_id}
                             className={txn.is_voided ? "opacity-40 line-through" : ""}
                           >
-                            <td className="font-mono font-bold text-yellow-400">
+                            <TableCell className="font-mono font-medium text-ink">
                               {txn.txn_id}
-                            </td>
-                            <td className="text-xs text-slate-400">
+                            </TableCell>
+                            <TableCell className="text-xs text-muted whitespace-nowrap">
                               {txn.entry_date}
-                            </td>
-                            <td>
-                              <span
-                                className={`badge ${
-                                  txn.type === "issue"
-                                    ? "badge-gold"
-                                    : "badge-success"
-                                }`}
-                              >
-                                {txn.type}
-                              </span>
-                            </td>
-                            <td>
-                              <GoldNumber value={txn.gross_mg} />
-                            </td>
-                            <td>
+                            </TableCell>
+                            <TableCell align="center">
+                              <StatusBadge
+                                status={txn.type === "issue" ? "review" : "ok"}
+                                label={txn.type}
+                              />
+                            </TableCell>
+                            <TableCell align="right">
+                              <GoldNumber value={txn.gross_mg} align="right" />
+                            </TableCell>
+                            <TableCell align="right">
                               <GoldNumber
                                 value={txn.purity_bp}
                                 type="purity"
+                                align="right"
                               />
-                            </td>
-                            <td className="font-bold">
-                              <GoldNumber
-                                value={txn.fine_mg}
-                                highlight="gold"
-                              />
-                            </td>
-                            <td className="text-xs font-mono text-slate-300">
+                            </TableCell>
+                            <TableCell align="right" className="font-medium">
+                              <GoldNumber value={txn.fine_mg} align="right" />
+                            </TableCell>
+                            <TableCell className="text-xs font-mono text-muted max-w-xs truncate">
                               {txn.huid || txn.note || "—"}
-                            </td>
-                            <td>
-                              {txn.is_voided ? (
-                                <span className="badge badge-danger">
-                                  Voided
-                                </span>
-                              ) : (
-                                <span className="badge badge-success">
-                                  Valid
-                                </span>
-                              )}
-                            </td>
-                            <td className="text-right">
+                            </TableCell>
+                            <TableCell align="center">
+                              <StatusBadge
+                                status={txn.is_voided ? "problem" : "ok"}
+                                label={txn.is_voided ? "Voided" : "Valid"}
+                              />
+                            </TableCell>
+                            <TableCell align="right">
                               {!txn.is_voided && (
-                                <button
+                                <Button
+                                  variant="danger"
+                                  size="sm"
                                   onClick={() =>
                                     setVoidTarget({
                                       type: txn.type,
@@ -477,17 +517,16 @@ export default function KarigarBalances() {
                                       txn_id: txn.txn_id,
                                     })
                                   }
-                                  className="btn-danger text-[10px] py-1 px-2"
                                 >
-                                  Void Entry
-                                </button>
+                                  Void
+                                </Button>
                               )}
-                            </td>
-                          </tr>
+                            </TableCell>
+                          </TableRow>
                         ))}
-                      </tbody>
-                    </table>
-                  </div>
+                      </TableBody>
+                    </TableContainer>
+                  )}
                 </div>
               </div>
             )}
@@ -497,52 +536,51 @@ export default function KarigarBalances() {
 
       {/* Void Modal Confirmation */}
       {voidTarget && (
-        <div className="fixed inset-0 bg-black/90 flex items-center justify-center p-4 z-50">
-          <div className="card-glass w-full max-w-md p-6 border border-rose-800">
-            <h3 className="text-base font-bold text-rose-400 flex items-center gap-2">
-              <RotateCcw className="w-4 h-4" />
+        <div className="fixed inset-0 bg-ink/50 flex items-center justify-center p-4 z-50">
+          <div className="w-full max-w-md bg-surface p-6 border border-status-problem/40 rounded shadow-lg">
+            <h3 className="text-base font-semibold text-status-problem flex items-center gap-2 m-0">
+              <RotateCcw className="w-4 h-4 stroke-[2]" />
               Void Transaction {voidTarget.txn_id}
             </h3>
-            <p className="text-xs text-slate-300 mt-2">
-              Ledger transactions are strictly append-only. Voiding this entry will permanently mark it void in the audit trail and neutralize its balance effect.
+            <p className="text-xs text-muted mt-2 m-0">
+              Ledger transactions are strictly append-only. Voiding this entry will permanently mark it void in the audit trail and neutralize its effect on the karigar balance.
             </p>
 
             {voidError && (
-              <div className="mt-3 p-2.5 rounded bg-rose-950/40 border border-rose-800 text-rose-300 text-xs">
+              <div className="mt-3 p-2.5 rounded bg-status-problem-tint border border-status-problem/20 text-status-problem text-xs">
                 {voidError}
               </div>
             )}
 
             <div className="mt-4">
-              <label className="block text-xs font-semibold text-slate-300 mb-1">
-                Mandatory Reason for Void (Min 5 chars)
-              </label>
-              <textarea
-                rows={3}
+              <Field
+                label="Mandatory Reason for Void (Min 5 chars)"
+                id="voidReason"
+                type="textarea"
                 required
                 value={voidReason}
                 onChange={(e) => setVoidReason(e.target.value)}
-                placeholder="e.g. Weigh scale tare button error during issue"
-                className="input-base text-xs"
+                placeholder="e.g. Weigh scale tare error during morning issue"
               />
             </div>
 
             <div className="mt-6 flex justify-end gap-2">
-              <button
-                type="button"
+              <Button
+                variant="secondary"
+                size="sm"
                 onClick={() => setVoidTarget(null)}
-                className="btn-secondary text-xs"
               >
                 Cancel
-              </button>
-              <button
-                type="button"
+              </Button>
+              <Button
+                variant="danger"
+                size="sm"
                 onClick={handleConfirmVoid}
-                disabled={voidLoading || voidReason.trim().length < 5}
-                className="btn-danger text-xs"
+                loading={voidLoading}
+                disabled={voidReason.trim().length < 5}
               >
-                {voidLoading ? "Recording Void..." : "Confirm Void Entry"}
-              </button>
+                Confirm Void Entry
+              </Button>
             </div>
           </div>
         </div>

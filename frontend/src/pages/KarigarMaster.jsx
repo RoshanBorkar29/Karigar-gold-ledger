@@ -1,10 +1,20 @@
 import React, { useState, useEffect } from "react";
 import { Users, Plus, Check, Settings2, UserPlus, AlertCircle } from "lucide-react";
 import AppShell from "../components/layout/AppShell";
-import GoldNumber from "../components/GoldNumber";
 import LoadingState from "../components/LoadingState";
 import ErrorState from "../components/ErrorState";
 import EmptyState from "../components/EmptyState";
+import Button from "../components/ui/Button";
+import Field from "../components/ui/Field";
+import StatusBadge from "../components/ui/StatusBadge";
+import {
+  TableContainer,
+  TableHead,
+  TableBody,
+  TableRow,
+  TableCell,
+  TableHeaderCell,
+} from "../components/ui/Table";
 import { api } from "../lib/api";
 import { fmtWastage, parseWastage } from "../lib/format";
 
@@ -19,6 +29,7 @@ export default function KarigarMaster() {
   const [newCode, setNewCode] = useState("");
   const [newName, setNewName] = useState("");
   const [addError, setAddError] = useState(null);
+  const [addLoading, setAddLoading] = useState(false);
 
   // Wastage Drawer State
   const [selectedKarigar, setSelectedKarigar] = useState(null);
@@ -30,6 +41,7 @@ export default function KarigarMaster() {
   // New Category State
   const [newCategoryName, setNewCategoryName] = useState("");
   const [showAddCategory, setShowAddCategory] = useState(false);
+  const [catLoading, setCatLoading] = useState(false);
 
   const fetchData = async () => {
     try {
@@ -76,8 +88,7 @@ export default function KarigarMaster() {
       const valStr = wastageInputs[categoryId] || "0.00";
       const bp = parseWastage(valStr);
       await api.setKarigarWastage(selectedKarigar.id, categoryId, bp);
-      setWastageMsg({ type: "success", text: "Agreed wastage rate updated." });
-      // Refresh
+      setWastageMsg({ type: "success", text: "Agreed wastage rate updated successfully." });
       const wData = await api.getKarigarWastages(selectedKarigar.id);
       setWastages(wData);
     } catch (err) {
@@ -90,6 +101,7 @@ export default function KarigarMaster() {
   const handleCreateKarigar = async (e) => {
     e.preventDefault();
     setAddError(null);
+    setAddLoading(true);
     try {
       await api.createKarigar({ code: newCode.trim(), name: newName.trim() });
       setShowAddKarigar(false);
@@ -97,13 +109,16 @@ export default function KarigarMaster() {
       setNewName("");
       fetchData();
     } catch (err) {
-      setAddError(err.message || "Failed to create karigar");
+      setAddError(err.message || "Failed to create karigar profile");
+    } finally {
+      setAddLoading(false);
     }
   };
 
   const handleCreateCategory = async (e) => {
     e.preventDefault();
     if (!newCategoryName.trim()) return;
+    setCatLoading(true);
     try {
       await api.createCategory(newCategoryName.trim());
       setNewCategoryName("");
@@ -112,6 +127,8 @@ export default function KarigarMaster() {
       setCategories(cData);
     } catch (err) {
       alert(err.message || "Failed to add category");
+    } finally {
+      setCatLoading(false);
     }
   };
 
@@ -121,101 +138,106 @@ export default function KarigarMaster() {
       subtitle="Manage artisan profiles and contractual wastage limits per ornament category"
       actions={
         <div className="flex items-center gap-2">
-          <button
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={() => setShowAddCategory(!showAddCategory)}
-            className="btn-secondary text-xs py-2 px-3"
+            icon={Plus}
           >
-            <Plus className="w-3.5 h-3.5" />
             New Category
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="primary"
+            size="sm"
             onClick={() => setShowAddKarigar(true)}
-            className="btn-gold text-xs py-2 px-3"
+            icon={UserPlus}
           >
-            <UserPlus className="w-3.5 h-3.5" />
             Add Karigar
-          </button>
+          </Button>
         </div>
       }
     >
-      {/* Quick Add Category Inline Box */}
+      {/* Quick Add Category Inline Form */}
       {showAddCategory && (
         <form
           onSubmit={handleCreateCategory}
-          className="mb-6 p-4 card-glass border border-slate-700 bg-slate-900/70 flex items-center gap-3 rounded-lg"
+          className="mb-6 p-4 bg-surface border border-border rounded flex flex-col sm:flex-row items-stretch sm:items-end gap-3"
         >
-          <input
-            type="text"
-            required
-            placeholder="New Category Name (e.g. Antique Choker, Mangalsutra)"
-            value={newCategoryName}
-            onChange={(e) => setNewCategoryName(e.target.value)}
-            className="input-base text-xs"
-          />
-          <button type="submit" className="btn-gold text-xs py-2 px-4 shrink-0">
+          <div className="flex-1">
+            <Field
+              label="New Ornament Category Name"
+              id="newCategoryName"
+              placeholder="e.g. Antique Choker, Temple Haar, Mangalsutra"
+              value={newCategoryName}
+              onChange={(e) => setNewCategoryName(e.target.value)}
+              required
+            />
+          </div>
+          <Button
+            type="submit"
+            variant="primary"
+            size="md"
+            loading={catLoading}
+          >
             Save Category
-          </button>
+          </Button>
         </form>
       )}
 
       {/* Modal: Add Karigar */}
       {showAddKarigar && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
-          <div className="card-glass w-full max-w-md p-6 border border-slate-700">
-            <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
-              <UserPlus className="w-4 h-4 text-yellow-400" />
+        <div className="fixed inset-0 bg-ink/50 flex items-center justify-center p-4 z-50">
+          <div className="w-full max-w-md bg-surface p-6 border border-border rounded shadow-lg">
+            <h3 className="text-base font-semibold text-ink flex items-center gap-2 m-0">
+              <UserPlus className="w-4 h-4 stroke-[2] text-bronze" />
               Register New Karigar
             </h3>
-            <p className="text-xs text-slate-400 mt-1">
+            <p className="text-xs text-muted mt-1 m-0">
               Add a new goldsmith artisan to workshop records.
             </p>
 
             {addError && (
-              <div className="mt-3 p-2.5 rounded bg-rose-950/40 border border-rose-800 text-rose-300 text-xs">
+              <div className="mt-3 p-2.5 rounded bg-status-problem-tint border border-status-problem/20 text-status-problem text-xs">
                 {addError}
               </div>
             )}
 
             <form onSubmit={handleCreateKarigar} className="mt-4 space-y-3">
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  Artisan Code
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. K-041"
-                  value={newCode}
-                  onChange={(e) => setNewCode(e.target.value)}
-                  className="input-base"
-                />
-              </div>
+              <Field
+                label="Artisan Code"
+                id="artisanCode"
+                placeholder="e.g. K-041"
+                required
+                value={newCode}
+                onChange={(e) => setNewCode(e.target.value)}
+              />
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  Full Name
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Murugan Vel"
-                  value={newName}
-                  onChange={(e) => setNewName(e.target.value)}
-                  className="input-base"
-                />
-              </div>
+              <Field
+                label="Full Name"
+                id="artisanName"
+                placeholder="e.g. Murugan Vel"
+                required
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+              />
 
-              <div className="mt-6 flex justify-end gap-2">
-                <button
+              <div className="mt-6 flex justify-end gap-2 pt-2">
+                <Button
                   type="button"
+                  variant="secondary"
+                  size="sm"
                   onClick={() => setShowAddKarigar(false)}
-                  className="btn-secondary text-xs"
                 >
                   Cancel
-                </button>
-                <button type="submit" className="btn-gold text-xs">
+                </Button>
+                <Button
+                  type="submit"
+                  variant="primary"
+                  size="sm"
+                  loading={addLoading}
+                >
                   Create Profile
-                </button>
+                </Button>
               </div>
             </form>
           </div>
@@ -234,100 +256,98 @@ export default function KarigarMaster() {
           onAction={() => setShowAddKarigar(true)}
         />
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
           {/* Karigars List Table */}
-          <div className="lg:col-span-2 card-glass overflow-hidden">
-            <div className="p-4 border-b border-slate-800 flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-slate-200">
-                Registered Artisans ({karigars.length})
-              </h2>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Artisan Code</th>
-                    <th>Full Name</th>
-                    <th>Status</th>
-                    <th className="text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {karigars.map((k) => (
-                    <tr
-                      key={k.id}
-                      className={selectedKarigar?.id === k.id ? "bg-yellow-500/10" : ""}
-                    >
-                      <td className="font-mono font-bold text-yellow-400">
-                        {k.code}
-                      </td>
-                      <td className="font-medium text-slate-200">{k.name}</td>
-                      <td>
-                        <span
-                          className={`badge ${
-                            k.is_active ? "badge-success" : "badge-neutral"
-                          }`}
-                        >
-                          {k.is_active ? "Active" : "Inactive"}
-                        </span>
-                      </td>
-                      <td className="text-right">
-                        <button
-                          onClick={() => handleOpenWastage(k)}
-                          className="btn-secondary text-xs py-1.5 px-3"
-                        >
-                          <Settings2 className="w-3.5 h-3.5" />
-                          Agreed Wastage
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+          <div className="lg:col-span-2">
+            <TableContainer>
+              <TableHead>
+                <tr>
+                  <TableHeaderCell>Artisan Code</TableHeaderCell>
+                  <TableHeaderCell>Full Name</TableHeaderCell>
+                  <TableHeaderCell align="center">Status</TableHeaderCell>
+                  <TableHeaderCell align="right">Actions</TableHeaderCell>
+                </tr>
+              </TableHead>
+              <TableBody>
+                {karigars.map((k) => (
+                  <TableRow
+                    key={k.id}
+                    onClick={() => handleOpenWastage(k)}
+                    className={selectedKarigar?.id === k.id ? "bg-background/80" : ""}
+                  >
+                    <TableCell className="font-mono font-medium text-ink">
+                      {k.code}
+                    </TableCell>
+                    <TableCell className="font-medium text-ink">{k.name}</TableCell>
+                    <TableCell align="center">
+                      <StatusBadge
+                        status={k.is_active ? "active" : "neutral"}
+                        label={k.is_active ? "Active" : "Inactive"}
+                      />
+                    </TableCell>
+                    <TableCell align="right">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenWastage(k);
+                        }}
+                        icon={Settings2}
+                      >
+                        Agreed Wastage
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </TableContainer>
           </div>
 
           {/* Agreed Wastage Settings Panel */}
-          <div className="card-glass p-5">
+          <div className="p-5 bg-surface border border-border rounded">
             {selectedKarigar ? (
               <div>
-                <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-                  <div>
-                    <h3 className="text-sm font-bold text-slate-100">
-                      Contract Wastage: {selectedKarigar.name}
-                    </h3>
-                    <p className="text-xs text-yellow-400 font-mono">
+                <div className="pb-3 border-b border-border">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xs px-2 py-0.5 rounded bg-background border border-border text-ink font-semibold">
                       {selectedKarigar.code}
-                    </p>
+                    </span>
+                    <h3 className="text-sm font-semibold text-ink m-0">
+                      {selectedKarigar.name}
+                    </h3>
                   </div>
+                  <p className="text-xs text-muted mt-1 m-0">
+                    Contractual category wastage percentage limits
+                  </p>
                 </div>
 
                 {wastageMsg && (
                   <div
                     className={`mt-3 p-2.5 rounded text-xs flex items-center gap-2 ${
                       wastageMsg.type === "success"
-                        ? "bg-emerald-950/40 border border-emerald-800 text-emerald-300"
-                        : "bg-rose-950/40 border border-rose-800 text-rose-300"
+                        ? "bg-status-ok-tint border border-status-ok/20 text-status-ok"
+                        : "bg-status-problem-tint border border-status-problem/20 text-status-problem"
                     }`}
                   >
-                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <AlertCircle className="w-4 h-4 shrink-0 stroke-[2]" />
                     <span>{wastageMsg.text}</span>
                   </div>
                 )}
 
-                <div className="mt-4 space-y-3">
+                <div className="mt-4 space-y-2.5">
                   {categories.map((cat) => {
                     const currentVal = wastageInputs[cat.id] || "";
                     return (
                       <div
                         key={cat.id}
-                        className="p-3 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-between gap-3"
+                        className="p-3 rounded bg-background border border-border flex items-center justify-between gap-3"
                       >
-                        <span className="text-xs font-semibold text-slate-200">
+                        <span className="text-xs font-medium text-ink">
                           {cat.name}
                         </span>
                         <div className="flex items-center gap-2">
-                          <div className="relative w-20">
+                          <div className="relative w-24">
                             <input
                               type="text"
                               value={currentVal}
@@ -338,20 +358,22 @@ export default function KarigarMaster() {
                                 })
                               }
                               placeholder="3.00"
-                              className="input-base text-xs font-mono py-1 px-2 text-right pr-6"
+                              className="w-full h-8 px-2 pr-6 bg-surface border border-border rounded text-xs font-mono text-ink text-right outline-none focus:border-bronze focus:ring-1 focus:ring-bronze"
                             />
-                            <span className="absolute right-2 top-1.5 text-xs text-slate-400 pointer-events-none">
+                            <span className="absolute right-2 top-2 text-xs text-muted pointer-events-none">
                               %
                             </span>
                           </div>
-                          <button
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            className="h-8 min-w-[32px] px-2"
                             onClick={() => handleSaveWastage(cat.id)}
                             disabled={savingWastage}
-                            className="p-1.5 rounded bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30 transition"
                             title="Save rate"
                           >
-                            <Check className="w-3.5 h-3.5" />
-                          </button>
+                            <Check className="w-3.5 h-3.5 stroke-[2]" />
+                          </Button>
                         </div>
                       </div>
                     );
@@ -359,10 +381,10 @@ export default function KarigarMaster() {
                 </div>
               </div>
             ) : (
-              <div className="text-center py-12 text-slate-500">
-                <Settings2 className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                <p className="text-xs">
-                  Select a karigar to view and edit contractual category wastage percentages.
+              <div className="text-center py-12 text-muted">
+                <Settings2 className="w-8 h-8 mx-auto mb-2 text-muted/60 stroke-[1.5]" />
+                <p className="text-xs m-0">
+                  Select a karigar to view and update contractual category wastage rates.
                 </p>
               </div>
             )}
