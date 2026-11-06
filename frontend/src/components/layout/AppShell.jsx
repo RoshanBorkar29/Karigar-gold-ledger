@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Menu } from "lucide-react";
 import Sidebar from "./Sidebar";
 import OfflineBanner from "../ui/OfflineBanner";
+import PageHeader from "../ui/PageHeader";
 
 /**
  * Standard AppShell layout.
@@ -9,7 +10,7 @@ import OfflineBanner from "../ui/OfflineBanner";
  * Phone (<1024px): top bar with menu button opening sheet, padding 16px.
  * Tap targets >= 44px. NO horizontal page scroll at 360px width.
  */
-export default function AppShell({ children }) {
+export default function AppShell({ title, subtitle, actions, children }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
@@ -43,6 +44,13 @@ export default function AppShell({ children }) {
 
           {/* Central container */}
           <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-[960px] w-full mx-auto">
+            {title && (
+              <PageHeader
+                title={title}
+                description={subtitle}
+                action={actions}
+              />
+            )}
             {children}
           </main>
         </div>

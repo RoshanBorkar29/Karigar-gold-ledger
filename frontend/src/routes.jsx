@@ -17,8 +17,8 @@ function ProtectedRoute({ children, financeOnly = false }) {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
-        <LoadingState message="Verifying authentication session..." />
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <LoadingState count={3} />
       </div>
     );
   }
