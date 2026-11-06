@@ -85,8 +85,16 @@ export const api = {
   createJob: (data) => api.post("/api/karigars/jobs", data),
 
   // 4. Issues & Receipts
+  getIssues: (params = {}) => {
+    const q = new URLSearchParams(params).toString();
+    return api.get(`/api/issues${q ? `?${q}` : ""}`);
+  },
   createIssue: (data) => api.post("/api/issues", data),
   voidIssue: (id, reason) => api.post(`/api/issues/${id}/void`, { reason }),
+  getReceipts: (params = {}) => {
+    const q = new URLSearchParams(params).toString();
+    return api.get(`/api/receipts${q ? `?${q}` : ""}`);
+  },
   createReceipt: (data) => api.post("/api/receipts", data),
   voidReceipt: (id, reason) => api.post(`/api/receipts/${id}/void`, { reason }),
 

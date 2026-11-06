@@ -1,4 +1,5 @@
-"""Script to capture UI screenshots at 1280px (desktop) and 390px (mobile).
+"""Script to capture UI screenshots at 1440px (desktop) and 390px (mobile)
+and measure page / form heights for Issue, Receipt, and Old gold.
 
 Uses Chrome DevTools Protocol (CDP) directly via websockets.
 """
@@ -101,9 +102,14 @@ async def main():
     env["JWT_SECRET"] = "super-secret-karigar-key-coimbatore-workshop"
     env["DATABASE_URL"] = "postgresql+psycopg://postgres:postgres@localhost:5432/karigar_ledger"
 
+    python_bin = sys.executable
+    venv_py = Path("backend/.venv/Scripts/python.exe").resolve()
+    if venv_py.exists():
+        python_bin = str(venv_py)
+
     # 1. Start backend uvicorn process
     backend_proc = subprocess.Popen(
-        [sys.executable, "-m", "uvicorn", "app.main:app", "--app-dir", "backend", "--port", "8000"],
+        [python_bin, "-m", "uvicorn", "app.main:app", "--app-dir", "backend", "--port", "8000"],
         env=env,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
@@ -179,12 +185,26 @@ async def main():
         await client.send("Runtime.enable")
 
         async def capture_both(route, filename_base, wait=3.0):
-            # Desktop 1280px
-            await client.set_viewport(1280, 800, is_mobile=False)
+            # Desktop 1440px wide x 900px high
+            await client.set_viewport(1440, 900, is_mobile=False)
             await client.navigate(f"http://localhost:5173{route}", wait_seconds=wait)
-            await client.screenshot(OUTPUT_DIR / f"{filename_base}-1280.png")
+            await client.screenshot(OUTPUT_DIR / f"{filename_base}-1440.png")
 
-            # Mobile 390px
+            # Measure height at 1440x900
+            height_res = await client.evaluate("""
+                (() => {
+                    const form = document.querySelector('form');
+                    const formRect = form ? form.getBoundingClientRect() : null;
+                    return {
+                        scrollHeight: document.documentElement.scrollHeight,
+                        clientHeight: document.documentElement.clientHeight,
+                        formHeight: formRect ? Math.round(formRect.height) : null
+                    };
+                })()
+            """)
+            print(f"[MEASURE {filename_base} @ 1440x900]: {height_res.get('result', {}).get('value')}")
+
+            # Mobile 390px wide x 844px high
             await client.set_viewport(390, 844, is_mobile=True)
             await asyncio.sleep(1.0)
             await client.screenshot(OUTPUT_DIR / f"{filename_base}-390.png")
@@ -216,23 +236,33 @@ async def main():
         await client.evaluate(clerk_js)
         await capture_both("/issues", "issues", wait=3.0)
 
-        # 3. Balances (Clerk)
-        print("[*] 3. Capturing Karigar Balances screen (Clerk)...")
+        # 3. Receipt Entry (Clerk)
+        print("[*] 3. Capturing Receipt Entry screen (Clerk)...")
+        await client.evaluate(clerk_js)
+        await capture_both("/receipts", "receipts", wait=3.0)
+
+        # 4. Old Gold (Clerk)
+        print("[*] 4. Capturing Old Gold Desk screen (Clerk)...")
+        await client.evaluate(clerk_js)
+        await capture_both("/old-gold", "old-gold", wait=3.0)
+
+        # 5. Balances (Clerk)
+        print("[*] 5. Capturing Karigar Balances screen (Clerk)...")
         await client.evaluate(clerk_js)
         await capture_both("/balances", "balances", wait=3.0)
 
-        # 4. Loss Alerts (Finance Head)
-        print("[*] 4. Capturing Loss Alerts screen (Finance Head)...")
+        # 6. Loss Alerts (Finance Head)
+        print("[*] 6. Capturing Loss Alerts screen (Finance Head)...")
         await client.evaluate(finance_js)
         await capture_both("/alerts", "alerts", wait=3.0)
 
-        # 5. Daily Stock (Finance Head)
-        print("[*] 5. Capturing Daily Stock screen (Finance Head)...")
+        # 7. Daily Stock (Finance Head)
+        print("[*] 7. Capturing Daily Stock screen (Finance Head)...")
         await client.evaluate(finance_js)
         await capture_both("/stock", "stock", wait=3.0)
 
         await client.close()
-        print("[SUCCESS] All 10 screenshots captured successfully!")
+        print("[SUCCESS] All 14 screenshots captured successfully!")
 
     finally:
         chrome_proc.terminate()
