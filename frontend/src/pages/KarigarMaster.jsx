@@ -68,10 +68,13 @@ export default function KarigarMaster() {
     setSelectedKarigar(karigar);
     setWastageMsg(null);
     try {
-      const wData = await api.getKarigarWastages(karigar.id);
-      setWastages(wData);
+      let wData = karigar.wastages;
+      if (!Array.isArray(wData) || wData.length === 0) {
+        wData = await api.getKarigarWastages(karigar.id);
+      }
+      setWastages(wData || []);
       const inputs = {};
-      wData.forEach((w) => {
+      (wData || []).forEach((w) => {
         inputs[w.category_id] = fmtWastage(w.wastage_bp);
       });
       setWastageInputs(inputs);

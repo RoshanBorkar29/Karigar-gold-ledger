@@ -163,6 +163,19 @@ def update_karigar(
     )
 
 
+@router.get("/{karigar_id}/wastage", response_model=list[KarigarCategoryWastageRead])
+def get_karigar_wastages(
+    karigar_id: int,
+    db: Annotated[Session, Depends(get_db)],
+    _: Annotated[User, Depends(require_clerk_or_finance)],
+) -> list[KarigarCategoryWastageRead]:
+    """Retrieve all contractual agreed wastage rates for an artisan."""
+    karigar = db.get(Karigar, karigar_id)
+    if not karigar:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Karigar not found")
+    return _load_karigar_wastages(db, karigar.id)
+
+
 @router.post("/{karigar_id}/wastage", response_model=KarigarCategoryWastageRead)
 def set_karigar_wastage(
     karigar_id: int,

@@ -125,6 +125,15 @@ def test_full_ledger_workflow_via_api(client: TestClient, auth_headers):
     assert w_resp.status_code == 200
     assert w_resp.json()["wastage_bp"] == 300
 
+    # 3b. Verify GET /api/karigars/{karigar_id}/wastage lists agreed wastage
+    get_w_resp = client.get(
+        f"/api/karigars/{karigar_id}/wastage",
+        headers=headers,
+    )
+    assert get_w_resp.status_code == 200
+    assert len(get_w_resp.json()) >= 1
+    assert get_w_resp.json()[0]["wastage_bp"] == 300
+
     # 4. Open Job (snapshots wastage_bp 300)
     job_resp = client.post(
         f"/api/karigars/{karigar_id}/jobs",

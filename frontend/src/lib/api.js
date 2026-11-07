@@ -76,13 +76,21 @@ export const api = {
 
   // 3. Karigars
   getKarigars: () => api.get("/api/karigars"),
+  getKarigar: (id) => api.get(`/api/karigars/${id}`),
   createKarigar: (data) => api.post("/api/karigars", data),
-  getKarigarWastages: (id) => api.get(`/api/karigars/${id}/wastage`),
+  getKarigarWastages: async (id) => {
+    try {
+      return await api.get(`/api/karigars/${id}/wastage`);
+    } catch {
+      const k = await api.get(`/api/karigars/${id}`);
+      return k?.wastages || [];
+    }
+  },
   setKarigarWastage: (id, category_id, wastage_bp) =>
     api.post(`/api/karigars/${id}/wastage`, { category_id, wastage_bp }),
   getKarigarJobs: (id, open_only = false) =>
     api.get(`/api/karigars/${id}/jobs${open_only ? "?open_only=true" : ""}`),
-  createJob: (data) => api.post("/api/karigars/jobs", data),
+  createJob: (data) => api.post(`/api/karigars/${data.karigar_id}/jobs`, data),
 
   // 4. Issues & Receipts
   getIssues: (params = {}) => {

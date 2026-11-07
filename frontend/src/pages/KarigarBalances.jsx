@@ -64,14 +64,30 @@ export default function KarigarBalances() {
     fetchBalances();
   }, [asOfDate]);
 
+  const fetchKarigarDetailWithTxns = async (karigarId) => {
+    const [detail, issues, receipts] = await Promise.all([
+      api.getKarigarDetail(karigarId, asOfDate),
+      api.getIssues({ karigar_id: karigarId }).catch(() => []),
+      api.getReceipts({ karigar_id: karigarId }).catch(() => []),
+    ]);
+
+    const txns = [
+      ...(Array.isArray(issues) ? issues.map((i) => ({ ...i, type: "issue" })) : []),
+      ...(Array.isArray(receipts) ? receipts.map((r) => ({ ...r, type: "receipt" })) : []),
+    ].sort((a, b) => new Date(b.entry_date) - new Date(a.entry_date));
+
+    return {
+      ...detail,
+      jobs: Array.isArray(detail?.jobs) ? detail.jobs : [],
+      transactions: txns,
+    };
+  };
+
   const handleOpenDetail = async (karigarSummary) => {
     setSelectedKarigar(karigarSummary);
     setDetailLoading(true);
     try {
-      const detail = await api.getKarigarDetail(
-        karigarSummary.karigar_id,
-        asOfDate
-      );
+      const detail = await fetchKarigarDetailWithTxns(karigarSummary.karigar_id);
       setKarigarDetail(detail);
     } catch (err) {
       alert("Failed to load karigar ledger details: " + err.message);
@@ -87,10 +103,7 @@ export default function KarigarBalances() {
     try {
       await api.closeJob(jobId);
       if (selectedKarigar) {
-        const detail = await api.getKarigarDetail(
-          selectedKarigar.karigar_id,
-          asOfDate
-        );
+        const detail = await fetchKarigarDetailWithTxns(selectedKarigar.karigar_id);
         setKarigarDetail(detail);
       }
       fetchBalances();
@@ -115,10 +128,7 @@ export default function KarigarBalances() {
       setVoidTarget(null);
       setVoidReason("");
       if (selectedKarigar) {
-        const detail = await api.getKarigarDetail(
-          selectedKarigar.karigar_id,
-          asOfDate
-        );
+        const detail = await fetchKarigarDetailWithTxns(selectedKarigar.karigar_id);
         setKarigarDetail(detail);
       }
       fetchBalances();
@@ -352,11 +362,11 @@ export default function KarigarBalances() {
                 <div>
                   <div className="flex items-center justify-between mb-3">
                     <h3 className="text-sm font-semibold text-ink m-0">
-                      Work Order Settlements ({karigarDetail.jobs.length})
+                      Work Order Settlements ({(karigarDetail.jobs || []).length})
                     </h3>
                   </div>
 
-                  {karigarDetail.jobs.length === 0 ? (
+                  {(!karigarDetail.jobs || karigarDetail.jobs.length === 0) ? (
                     <div className="p-4 bg-background border border-border rounded text-xs text-muted text-center">
                       No jobs recorded for this karigar.
                     </div>
@@ -377,7 +387,7 @@ export default function KarigarBalances() {
                         </tr>
                       </TableHead>
                       <TableBody>
-                        {karigarDetail.jobs.map((job) => {
+                        {(karigarDetail.jobs || []).map((job) => {
                           const s = job.settlement;
                           return (
                             <TableRow key={job.job_id}>
@@ -442,11 +452,11 @@ export default function KarigarBalances() {
                 <div>
                   <div className="flex items-center justify-between mb-3">
                     <h3 className="text-sm font-semibold text-ink m-0">
-                      Append-Only Transactions ({karigarDetail.transactions.length})
+                      Append-Only Transactions ({(karigarDetail.transactions || []).length})
                     </h3>
                   </div>
 
-                  {karigarDetail.transactions.length === 0 ? (
+                  {(!karigarDetail.transactions || karigarDetail.transactions.length === 0) ? (
                     <div className="p-4 bg-background border border-border rounded text-xs text-muted text-center">
                       No transactions recorded.
                     </div>
@@ -466,7 +476,7 @@ export default function KarigarBalances() {
                         </tr>
                       </TableHead>
                       <TableBody>
-                        {karigarDetail.transactions.map((txn) => (
+                        {(karigarDetail.transactions || []).map((txn) => (
                           <TableRow
                             key={txn.txn_id}
                             className={txn.is_voided ? "opacity-40 line-through" : ""}

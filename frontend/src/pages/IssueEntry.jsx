@@ -173,12 +173,16 @@ export default function IssueEntry() {
         const match = wastages.find((w) => w.category_id === Number(newJobCategory));
         const agreedBp = match ? match.wastage_bp : 300;
 
+        const catObj = categories.find((c) => c.id === Number(newJobCategory));
+        const defaultDesc = `${catObj ? catObj.name : "Ornament"} crafting order`;
+
         const createdJob = await api.createJob({
           karigar_id: Number(karigarId),
           category_id: Number(newJobCategory),
           job_no: newJobNo.trim(),
           wastage_bp: agreedBp,
-          description: newJobDesc.trim() || undefined,
+          description: newJobDesc.trim().length >= 2 ? newJobDesc.trim() : defaultDesc,
+          opened_on: entryDate || new Date().toISOString().slice(0, 10),
         });
         targetJobId = createdJob.id;
 
