@@ -6,7 +6,11 @@ from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from sqlalchemy.orm import Session
 
 from app.ai.explain import generate_loss_explanation
-from app.ai.validators import validate_upload_file
+from app.ai.validators import (
+    validate_karat_reading,
+    validate_scale_reading,
+    validate_upload_file,
+)
 from app.ai.vision_reader import extract_karat_reading, extract_scale_reading
 from app.api.deps import get_db, require_clerk_or_finance, require_finance_head
 from app.core.limiter import limiter
@@ -61,9 +65,17 @@ async def read_scale_photo(
     db.commit()
     db.refresh(reading)
 
+    val_mg = None
+    if res.get("readable") and res.get("value"):
+        try:
+            val_mg = validate_scale_reading(res["value"], res.get("unit") or "g", True)
+        except Exception:
+            pass
+
     return ScaleReadingResponse(
         reading_id=reading.id,
         value_text=res["value"],
+        value_mg=val_mg,
         unit=res["unit"],
         confidence=res["confidence"],
         readable=res["readable"],
@@ -107,9 +119,17 @@ async def read_karat_meter_photo(
     db.commit()
     db.refresh(reading)
 
+    pur_bp = None
+    if res.get("readable") and res.get("purity"):
+        try:
+            pur_bp = validate_karat_reading(res["purity"], res.get("unit") or "%", True)
+        except Exception:
+            pass
+
     return KaratMeterReadingResponse(
         reading_id=reading.id,
         purity_text=res["purity"],
+        purity_bp=pur_bp,
         unit=res["unit"],
         confidence=res["confidence"],
         readable=res["readable"],

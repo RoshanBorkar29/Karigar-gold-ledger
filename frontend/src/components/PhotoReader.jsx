@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Camera, Upload, AlertTriangle } from "lucide-react";
 import { api } from "../lib/api";
+import { parseG, parsePurity } from "../lib/format";
 import GoldNumber from "./GoldNumber";
 import Button from "./ui/Button";
 
@@ -139,6 +140,31 @@ export default function PhotoReader({
       : "Low"
     : "Medium";
 
+  let displayValue = 0;
+  if (reading && reading.readable) {
+    if (isScale) {
+      if (typeof reading.value_mg === "number") {
+        displayValue = reading.value_mg;
+      } else if (reading.value_text) {
+        try {
+          displayValue = parseG(reading.value_text);
+        } catch {
+          displayValue = Math.round(parseFloat(reading.value_text) * 1000) || 0;
+        }
+      }
+    } else {
+      if (typeof reading.purity_bp === "number") {
+        displayValue = reading.purity_bp;
+      } else if (reading.purity_text) {
+        try {
+          displayValue = parsePurity(reading.purity_text);
+        } catch {
+          displayValue = Math.round(parseFloat(reading.purity_text) * 100) || 0;
+        }
+      }
+    }
+  }
+
   // If collapsed and no mismatch, return null
   if (!isOpen && !isMismatch) {
     return null;
@@ -222,7 +248,7 @@ export default function PhotoReader({
               <div className="space-y-1.5">
                 <div className="text-xs text-muted">Instrument reading</div>
                 <GoldNumber
-                  value={isScale ? reading.value_mg : reading.purity_bp}
+                  value={displayValue}
                   type={isScale ? "weight" : "purity"}
                   size="xl"
                   isKeyBalance

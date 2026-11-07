@@ -9,6 +9,7 @@ class ScaleReadingResponse(BaseModel):
 
     reading_id: int
     value_text: str | None = Field(default=None, description="Detected weight value string (e.g. '112.450')")
+    value_mg: int | None = Field(default=None, description="Integer milligrams weight (e.g. 112450)")
     unit: str | None = Field(default="g", description="Detected scale unit")
     confidence: int = Field(default=0, ge=0, le=100, description="Model extraction confidence score (0-100)")
     readable: bool = Field(default=False, description="Whether the scale digits were clearly legible")
@@ -21,6 +22,7 @@ class KaratMeterReadingResponse(BaseModel):
 
     reading_id: int
     purity_text: str | None = Field(default=None, description="Detected purity percentage string (e.g. '91.60')")
+    purity_bp: int | None = Field(default=None, description="Integer basis points purity (e.g. 9160)")
     unit: str | None = Field(default="%", description="Detected unit")
     confidence: int = Field(default=0, ge=0, le=100)
     readable: bool = Field(default=False)
