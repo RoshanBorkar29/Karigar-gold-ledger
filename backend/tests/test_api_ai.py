@@ -297,10 +297,10 @@ def test_ai_upload_file_rejections(client: TestClient, auth_tokens):
     assert "exceeds 5 MB limit" in resp.json()["detail"]
 
 
-def test_ai_rate_limiting(client: TestClient, auth_tokens):
+def test_ai_rate_limiting(client: TestClient, auth_tokens, monkeypatch):
     """Verify rate limiter blocks requests exceeding 20/minute on /api/ai endpoints."""
     headers = auth_tokens["clerk_headers"]
-    files = {"file": ("scale.jpg", io.BytesIO(_valid_jpeg()), "image/jpeg")}
+    monkeypatch.setattr("app.ai.vision_reader.has_groq_key", lambda: False)
 
     limiter.reset()
 
@@ -580,10 +580,11 @@ def test_receipt_creation_server_side_mismatch_block(client: TestClient, auth_to
 
 
 
-def test_ai_loss_explanation_finance_head(client: TestClient, auth_tokens, session: Session):
+def test_ai_loss_explanation_finance_head(client: TestClient, auth_tokens, session: Session, monkeypatch):
     """Finance head requests AI loss explanation draft for a karigar."""
     f_headers = auth_tokens["finance_headers"]
     c_headers = auth_tokens["clerk_headers"]
+    monkeypatch.setattr("app.ai.explain.has_groq_key", lambda: False)
 
     karigar = Karigar(code="K-099", name="Selvam", is_active=True)
     session.add(karigar)

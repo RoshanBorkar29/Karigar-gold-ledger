@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Users, Plus, Check, Settings2, UserPlus, AlertCircle } from "lucide-react";
+import { Users, Plus, Check, Settings2, UserPlus, AlertCircle, X } from "lucide-react";
 import AppShell from "../components/layout/AppShell";
 import LoadingState from "../components/LoadingState";
 import ErrorState from "../components/ErrorState";
@@ -275,7 +275,14 @@ export default function KarigarMaster() {
                 {karigars.map((k) => (
                   <TableRow
                     key={k.id}
-                    onClick={() => handleOpenWastage(k)}
+                    onClick={() => {
+                      if (selectedKarigar?.id === k.id) {
+                        setSelectedKarigar(null);
+                        setWastageMsg(null);
+                      } else {
+                        handleOpenWastage(k);
+                      }
+                    }}
                     className={selectedKarigar?.id === k.id ? "bg-background/80" : ""}
                   >
                     <TableCell className="font-mono font-medium text-ink">
@@ -294,7 +301,12 @@ export default function KarigarMaster() {
                         size="sm"
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleOpenWastage(k);
+                          if (selectedKarigar?.id === k.id) {
+                            setSelectedKarigar(null);
+                            setWastageMsg(null);
+                          } else {
+                            handleOpenWastage(k);
+                          }
                         }}
                         icon={Settings2}
                       >
@@ -311,27 +323,40 @@ export default function KarigarMaster() {
           <div className="p-5 bg-surface border border-border rounded">
             {selectedKarigar ? (
               <div>
-                <div className="pb-3 border-b border-border">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-xs px-2 py-0.5 rounded bg-background border border-border text-ink font-semibold">
-                      {selectedKarigar.code}
-                    </span>
-                    <h3 className="text-sm font-semibold text-ink m-0">
-                      {selectedKarigar.name}
-                    </h3>
+                <div className="pb-3 border-b border-border flex items-start justify-between">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-xs px-2 py-0.5 rounded bg-background border border-border text-ink font-semibold">
+                        {selectedKarigar.code}
+                      </span>
+                      <h3 className="text-sm font-semibold text-ink m-0">
+                        {selectedKarigar.name}
+                      </h3>
+                    </div>
+                    <p className="text-xs text-muted mt-1 m-0">
+                      Contractual category wastage percentage limits
+                    </p>
                   </div>
-                  <p className="text-xs text-muted mt-1 m-0">
-                    Contractual category wastage percentage limits
-                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedKarigar(null);
+                      setWastageMsg(null);
+                    }}
+                    className="p-1.5 rounded text-muted hover:text-ink hover:bg-background transition"
+                    title="Close panel"
+                    aria-label="Close panel"
+                  >
+                    <X className="w-4 h-4 stroke-[2]" />
+                  </button>
                 </div>
 
                 {wastageMsg && (
                   <div
-                    className={`mt-3 p-2.5 rounded text-xs flex items-center gap-2 ${
-                      wastageMsg.type === "success"
+                    className={`mt-3 p-2.5 rounded text-xs flex items-center gap-2 ${wastageMsg.type === "success"
                         ? "bg-status-ok-tint border border-status-ok/20 text-status-ok"
                         : "bg-status-problem-tint border border-status-problem/20 text-status-problem"
-                    }`}
+                      }`}
                   >
                     <AlertCircle className="w-4 h-4 shrink-0 stroke-[2]" />
                     <span>{wastageMsg.text}</span>

@@ -2,6 +2,7 @@
 
 import base64
 import json
+import re
 from typing import Any
 
 from app.ai.provider import get_groq_client, has_groq_key, has_groq_vision_model
@@ -63,8 +64,9 @@ def extract_scale_reading(image_bytes: bytes, filename: str = "scale.jpg") -> di
     prompt = (
         "You are an expert OCR system for precision jewellery scales. "
         "Extract the displayed numeric weight reading and unit. "
+        "Preserve all 3 decimal places exactly as a string (e.g. '112.450'). "
         "Respond ONLY with a JSON object containing:\n"
-        "- 'value': string with the number (e.g. '112.450' or '3.300')\n"
+        "- 'value': string with the number with 3 decimals (e.g. '112.450' or '42.120')\n"
         "- 'unit': string ('g')\n"
         "- 'confidence': integer between 0 and 100\n"
         "- 'readable': boolean true if the digits are clearly legible, false otherwise"
@@ -73,13 +75,26 @@ def extract_scale_reading(image_bytes: bytes, filename: str = "scale.jpg") -> di
     res = _call_groq_vision(image_bytes, prompt)
     if res and isinstance(res, dict) and res.get("readable") is True and "value" in res:
         try:
-            val_str = str(res.get("value", "")).strip()
-            unit_str = str(res.get("unit", "")).strip()
+            val_raw = res.get("value")
+            if val_raw is not None:
+                val_str = str(val_raw).strip()
+                if re.match(r"^\d+\.\d{1,2}$", val_str):
+                    val_str = f"{float(val_str):.3f}"
+                elif re.match(r"^\d+$", val_str):
+                    val_str = f"{int(val_str)}.000"
+            else:
+                val_str = ""
+            unit_str = str(res.get("unit", "g")).strip().lower()
             validate_scale_reading(val_str, unit_str, readable=True)
+            conf_raw = res.get("confidence", 90)
+            if isinstance(conf_raw, (int, float)) and 0 < conf_raw <= 1.0:
+                conf = int(conf_raw * 100)
+            else:
+                conf = int(conf_raw) if conf_raw else 90
             return {
                 "value": val_str,
                 "unit": unit_str,
-                "confidence": int(res.get("confidence", 90)),
+                "confidence": conf,
                 "readable": True,
                 "fallback": None,
                 "model_name": model_name,
@@ -118,6 +133,7 @@ def extract_karat_reading(image_bytes: bytes, filename: str = "karat.jpg") -> di
     prompt = (
         "You are an OCR system for gold karat meters and XRF instruments. "
         "Extract the detected gold purity percentage. "
+        "Preserve 2 decimal places as a string (e.g. '91.60' or '75.00'). "
         "Respond ONLY with a JSON object containing:\n"
         "- 'purity': string with percentage (e.g. '91.60' or '75.00')\n"
         "- 'unit': string ('%')\n"
@@ -128,13 +144,26 @@ def extract_karat_reading(image_bytes: bytes, filename: str = "karat.jpg") -> di
     res = _call_groq_vision(image_bytes, prompt)
     if res and isinstance(res, dict) and res.get("readable") is True and "purity" in res:
         try:
-            purity_str = str(res.get("purity", "")).strip()
+            val_raw = res.get("purity")
+            if val_raw is not None:
+                purity_str = str(val_raw).strip()
+                if re.match(r"^\d+\.\d{1}$", purity_str):
+                    purity_str = f"{float(purity_str):.2f}"
+                elif re.match(r"^\d+$", purity_str):
+                    purity_str = f"{int(purity_str)}.00"
+            else:
+                purity_str = ""
             unit_str = str(res.get("unit", "%")).strip()
             validate_karat_reading(purity_str, unit_str, readable=True)
+            conf_raw = res.get("confidence", 90)
+            if isinstance(conf_raw, (int, float)) and 0 < conf_raw <= 1.0:
+                conf = int(conf_raw * 100)
+            else:
+                conf = int(conf_raw) if conf_raw else 90
             return {
                 "purity": purity_str,
                 "unit": unit_str,
-                "confidence": int(res.get("confidence", 90)),
+                "confidence": conf,
                 "readable": True,
                 "fallback": None,
                 "model_name": model_name,
