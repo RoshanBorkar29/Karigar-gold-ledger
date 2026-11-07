@@ -39,27 +39,32 @@ class FakeCompletion:
 
 
 class FakeCompletions:
-    def __init__(self, response_dict: dict | None = None, should_fail: bool = False):
+    def __init__(self, response_dict: dict | None = None, content_str: str | None = None, should_fail: bool = False):
         self.response_dict = response_dict
+        self.content_str = content_str
         self.should_fail = should_fail
+        self.last_kwargs = None
 
     def create(self, *args, **kwargs):
+        self.last_kwargs = kwargs
         if self.should_fail:
             raise RuntimeError("Simulated Groq API connection failure or timeout")
+        if self.content_str is not None:
+            return FakeCompletion(self.content_str)
         content = json.dumps(self.response_dict) if self.response_dict is not None else ""
         return FakeCompletion(content)
 
 
 class FakeChat:
-    def __init__(self, response_dict: dict | None = None, should_fail: bool = False):
-        self.completions = FakeCompletions(response_dict=response_dict, should_fail=should_fail)
+    def __init__(self, response_dict: dict | None = None, content_str: str | None = None, should_fail: bool = False):
+        self.completions = FakeCompletions(response_dict=response_dict, content_str=content_str, should_fail=should_fail)
 
 
 class FakeProvider:
     """Mock Groq client provider for testing AI vision and completion endpoints."""
 
-    def __init__(self, response_dict: dict | None = None, should_fail: bool = False):
-        self.chat = FakeChat(response_dict=response_dict, should_fail=should_fail)
+    def __init__(self, response_dict: dict | None = None, content_str: str | None = None, should_fail: bool = False):
+        self.chat = FakeChat(response_dict=response_dict, content_str=content_str, should_fail=should_fail)
 
 
 @pytest.fixture(scope="session")
@@ -488,3 +493,85 @@ def test_ai_loss_explanation_finance_head(client: TestClient, auth_tokens, sessi
     assert data["karigar_id"] == karigar.id
     assert "Selvam" in data["explanation"]
     assert "source" in data
+    assert data["source"] == "template"
+
+
+def test_ai_loss_explanation_with_groq_clean_output(client: TestClient, auth_tokens, session: Session, monkeypatch):
+    """When Groq returns clean computed figures without cause words, it is accepted with source 'llm'."""
+    clean_llm_text = "Artisan Selvam (K-099) recorded 3.50% loss versus 1.20% historical baseline across 10 jobs."
+    fake_provider = FakeProvider(content_str=clean_llm_text)
+    monkeypatch.setattr("app.ai.explain.get_groq_client", lambda: fake_provider)
+    monkeypatch.setattr("app.ai.explain.has_groq_key", lambda: True)
+    monkeypatch.setattr(settings, "GROQ_TEXT_MODEL", "llama-3.3-70b-versatile")
+
+    karigar = Karigar(code="K-099", name="Selvam", is_active=True)
+    session.add(karigar)
+    session.flush()
+
+    resp = client.post(
+        "/api/ai/explain-loss",
+        json={"karigar_id": karigar.id},
+        headers=auth_tokens["finance_headers"],
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["source"] == "llm"
+    assert data["explanation"] == clean_llm_text
+
+    # Verify the prompt sent to Groq contains only computed figures and does NOT suggest causes
+    prompt_sent = fake_provider.chat.completions.last_kwargs["messages"][1]["content"]
+    assert "Selvam" in prompt_sent
+    assert "Do not suggest or speculate on any causes" in prompt_sent
+    assert "crucible wear" not in prompt_sent
+
+
+def test_ai_loss_explanation_rejects_cause_words(client: TestClient, auth_tokens, session: Session, monkeypatch):
+    """When Groq returns cause words (crucible, porosity, setting), it falls back to template."""
+    bad_llm_text = "Excess loss occurred due to crucible wear and porosity during melting."
+    fake_provider = FakeProvider(content_str=bad_llm_text)
+    monkeypatch.setattr("app.ai.explain.get_groq_client", lambda: fake_provider)
+    monkeypatch.setattr("app.ai.explain.has_groq_key", lambda: True)
+    monkeypatch.setattr(settings, "GROQ_TEXT_MODEL", "llama-3.3-70b-versatile")
+
+    karigar = Karigar(code="K-099", name="Selvam", is_active=True)
+    session.add(karigar)
+    session.flush()
+
+    resp = client.post(
+        "/api/ai/explain-loss",
+        json={"karigar_id": karigar.id},
+        headers=auth_tokens["finance_headers"],
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["source"] == "template"
+    assert "crucible" not in data["explanation"]
+    assert "porosity" not in data["explanation"]
+    assert "Selvam" in data["explanation"]
+
+
+def test_ai_loss_explanation_rejects_banned_words(client: TestClient, auth_tokens, session: Session, monkeypatch):
+    """When Groq returns banned words (theft, stole, suspicious, fraud, blame), it falls back to template."""
+    bad_llm_text = "High variance indicates suspicious activity and possible fraud or theft."
+    fake_provider = FakeProvider(content_str=bad_llm_text)
+    monkeypatch.setattr("app.ai.explain.get_groq_client", lambda: fake_provider)
+    monkeypatch.setattr("app.ai.explain.has_groq_key", lambda: True)
+    monkeypatch.setattr(settings, "GROQ_TEXT_MODEL", "llama-3.3-70b-versatile")
+
+    karigar = Karigar(code="K-099", name="Selvam", is_active=True)
+    session.add(karigar)
+    session.flush()
+
+    resp = client.post(
+        "/api/ai/explain-loss",
+        json={"karigar_id": karigar.id},
+        headers=auth_tokens["finance_headers"],
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["source"] == "template"
+    assert "suspicious" not in data["explanation"]
+    assert "fraud" not in data["explanation"]
+    assert "theft" not in data["explanation"]
+    assert "Selvam" in data["explanation"]
+

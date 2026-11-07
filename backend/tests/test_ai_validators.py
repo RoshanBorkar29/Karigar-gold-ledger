@@ -114,3 +114,76 @@ def test_validate_karat_reading_valid():
 
     bp_pure = validate_karat_reading("100.00", "%", readable=True)
     assert bp_pure == 10000
+
+
+def test_build_explanation_prompt_contains_only_computed_figures():
+    """Prompt must contain only computed numbers and not suggest craftsmanship causes."""
+    from app.ai.explain import build_explanation_prompt
+
+    prompt = build_explanation_prompt(
+        karigar_name="Ramanathan",
+        karigar_code="K-001",
+        recent_pct="3.50",
+        baseline_pct="1.20",
+        sample_size=12,
+    )
+    assert "Ramanathan" in prompt
+    assert "K-001" in prompt
+    assert "3.50%" in prompt
+    assert "1.20%" in prompt
+    assert "12 jobs" in prompt
+    # Must instruct NOT to suggest causes
+    assert "Do not suggest or speculate on any causes" in prompt
+    # Must not contain positive cause suggestions like "crucible wear" or "filigree"
+    assert "crucible wear" not in prompt
+    assert "filigree" not in prompt
+
+
+def test_contains_forbidden_words_detects_cause_words():
+    """Output validator rejects cause words like crucible, porosity, setting."""
+    from app.ai.explain import contains_forbidden_words
+
+    assert contains_forbidden_words("Inspection indicates crucible wear.")
+    assert contains_forbidden_words("Porosity detected in casting process.")
+    assert contains_forbidden_words("Difficult filigree setting caused loss.")
+    assert contains_forbidden_words("Multiple crucibles were damaged.")
+    assert contains_forbidden_words("Stone settings were problematic.")
+
+
+def test_contains_forbidden_words_detects_banned_words():
+    """Output validator rejects banned accusation words like theft, stole, suspicious, fraud, blame."""
+    from app.ai.explain import contains_forbidden_words
+
+    assert contains_forbidden_words("Suspected theft of gold dust.")
+    assert contains_forbidden_words("Someone stole the scrap.")
+    assert contains_forbidden_words("Suspicious loss pattern noted.")
+    assert contains_forbidden_words("Potential fraud investigation.")
+    assert contains_forbidden_words("Do not blame the artisan.")
+
+
+def test_contains_forbidden_words_accepts_clean_figures():
+    """Output validator passes clean statistical descriptions without cause/banned words."""
+    from app.ai.explain import contains_forbidden_words
+
+    clean_text = "Artisan Ramanathan (K-001) recorded recent loss of 3.50% against historical baseline of 1.20% across 12 jobs."
+    assert not contains_forbidden_words(clean_text)
+
+
+def test_render_explanation_template_neutral():
+    """Fallback template contains strictly computed numbers and zero forbidden words."""
+    from app.ai.explain import contains_forbidden_words, render_explanation_template
+
+    template = render_explanation_template(
+        karigar_name="Murugan",
+        karigar_code="K-002",
+        recent_pct="4.10",
+        baseline_pct="2.00",
+        sample_size=8,
+    )
+    assert "Murugan" in template
+    assert "K-002" in template
+    assert "4.10%" in template
+    assert "2.00%" in template
+    assert "8 jobs" in template
+    assert not contains_forbidden_words(template)
+
