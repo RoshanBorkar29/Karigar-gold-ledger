@@ -82,6 +82,13 @@ export default function Login() {
           <rect x="58%" y="82%" width="112" height="4" rx="2" fill="#FBF9F4" fillOpacity="0.08" />
         </svg>
 
+        {/* Slow decorative sweep: 1px line moving left-to-right every 9 seconds */}
+        <div className="login-decorative-sweep-container" aria-hidden="true">
+          <div className="login-decorative-sweep-track">
+            <div className="login-decorative-sweep-line" />
+          </div>
+        </div>
+
         {/* Brand content */}
         <div className="relative z-10 flex flex-col justify-between h-full">
           {/* Top-left: Product name */}
@@ -104,15 +111,15 @@ export default function Login() {
           {/* Bottom: Ledger preview panel */}
           <div className="max-w-[380px] w-full bg-[#FBF9F4]/[0.10] border border-[#FBF9F4]/20 rounded-[8px] p-5">
             <div className="space-y-2.5 font-mono tabular-nums text-sm">
-              <div className="flex justify-between items-center text-[#FBF9F4]">
+              <div className="login-row-1 flex justify-between items-center text-[#FBF9F4]">
                 <span>Issued</span>
                 <span>109.920 g</span>
               </div>
-              <div className="flex justify-between items-center text-[#FBF9F4]">
+              <div className="login-row-2 flex justify-between items-center text-[#FBF9F4]">
                 <span>Returned</span>
                 <span>106.027 g</span>
               </div>
-              <div className="flex justify-between items-center text-[#F6EDD2] font-semibold pt-2 border-t border-[#FBF9F4]/20">
+              <div className="login-row-3 flex justify-between items-center text-[#F6EDD2] font-semibold pt-2 border-t border-[#FBF9F4]/20">
                 <span>Outstanding</span>
                 <span>3.893 g</span>
               </div>
