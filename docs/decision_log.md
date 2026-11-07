@@ -10,7 +10,7 @@ This document records the architectural, mathematical, and implementation decisi
   1. IEEE-754 binary floating-point (`float`).
   2. Fixed-point / arbitrary-precision decimal (`decimal.Decimal`).
   3. Native integer milligrams (`int`).
-- **Why Chosen**: Binary floats suffer from binary representation errors (e.g. `0.1 + 0.2 != 0.3`) which can compound across daily ledger entries for 40 karigars, leading to irreconcilable month-end balances. While Python's `Decimal` avoids binary drift, it introduces overhead, context management complexities (precision/rounding modes), and serialization inconsistencies across DB drivers and JSON APIs. Python native integers have arbitrary precision, zero precision loss, zero drift, and map 1:1 to SQL `BIGINT` columns.
+- **Why Chosen**: Binary floating-point can introduce representation nuances in cumulative summation across high volumes of daily entries. While arbitrary-precision decimal (`Decimal`) is widely used and effective in financial systems, storing weights as discrete integer milligrams provides a straightforward, direct domain model using native integer arithmetic that maps cleanly to standard SQL `BIGINT` columns without conversion overhead across database drivers and API schemas.
 - **Trade-off**: Requires explicit formatting (`fmt_g`) and parsing (`parse_g`) functions to convert between UI display grams (3 decimal places) and storage milligrams.
 
 ---
@@ -26,24 +26,24 @@ This document records the architectural, mathematical, and implementation decisi
 
 ---
 
-### Decision 3: Half-Up Integer Rounding Formula as Defined Project Assumption
+### Decision 3: Half-Up Integer Rounding Formula
 - **Decision**: Use the formula `(val * bp + 5000) // 10000` for all fine weight and allowed wastage calculations.
 - **Options Considered**:
   1. Floor truncation (`// 10000`).
   2. Round half-to-even (`round()` / banker's rounding).
-  3. Standard half-up rounding implemented via integer arithmetic (`+ 5000 // 10000`).
-- **Why Chosen**: Adopted as an explicit project assumption to ensure consistent half-up rounding (0.5 mg rounds up to 1 mg) without invoking any floating-point or Decimal libraries. Adding half the denominator (`5000`) before integer floor division (`// 10000`) achieves exact half-up integer rounding.
-- **Trade-off**: Half-up rounding introduces a minor positive bias over infinite distributions, but aligns with the project specification.
+  3. Half-up rounding implemented via integer arithmetic (`+ 5000 // 10000`).
+- **Why Chosen**: Selected as a straightforward convention to provide consistent half-up rounding (where fractional values of 0.5 mg and above round up) in pure integer arithmetic. Adding half the denominator (`5000`) prior to integer division provides a deterministic, lightweight implementation that behaves identically across backend and frontend code without external library dependencies.
+- **Trade-off**: Half-up rounding introduces a minor positive bias over symmetrical distributions, but provides predictable results for workshop operators.
 
 ---
 
 ### Decision 4: Test-First Development Order (TDD)
-- **Decision**: Author the comprehensive test suite (`test_gold.py`) and verify failures against a stub before implementing `gold.py`.
+- **Decision**: Author unit test suites and verify failing tests against stubs before implementing domain logic.
 - **Options Considered**:
   1. Code implementation first, write unit tests afterward.
-  2. Write tests first, verify failure against stubs, then implement to pass.
-- **Why Chosen**: Testing first guarantees the specifications (sample values, boundary conditions, edge cases, round-trips, and invalid inputs) are verified independently of the implementation. It prevents subconscious bias where tests are written to mirror quirks of the implementation.
-- **Trade-off**: Requires an extra initial step to write stubs and verify failing tests before delivering working features.
+  2. Author tests first, verify failure against stubs, then implement to pass.
+- **Why Chosen**: Authoring tests first helps clarify specifications (expected sample values, boundary conditions, and invalid inputs) before writing domain code. Verifying initial test failures against stubs provides immediate feedback and encourages modular, decoupled implementations.
+- **Trade-off**: Requires an upfront investment in test harness setup and stub definitions before functional code is written.
 
 ---
 
@@ -226,13 +226,13 @@ This document records the architectural, mathematical, and implementation decisi
 
 ---
 
-### Decision 22: Preserving Migration History vs Editing Initial Migration
-- **Decision**: Create new, forward-only Alembic migrations for schema evolutions rather than modifying historical migration files.
+### Decision 22: Preserving Migration History with Forward-Only Migrations
+- **Decision**: Create new, forward-only Alembic migrations for schema evolutions rather than modifying historical migration files, maintaining migrations as an append-only, forward-only record of database schema evolution.
 - **Options Considered**:
-  1. Editing migration 1 and recreating the database schema from scratch.
-  2. Adding new migration scripts with explicit upgrade and downgrade operations.
-- **Why Chosen**: Production database evolution requires strictly immutable, forward-only migration chains. Altering historical migrations breaks deployed environments, corrupts Alembic version history across developer machines, and destroys schema provenance.
-- **Trade-off**: Requires maintaining multiple migration files in the repository.
+  1. Editing earlier migrations and recreating the database schema from scratch.
+  2. Adding new, forward-only numbered migration scripts with explicit upgrade and downgrade operations.
+- **Why Chosen**: In evolving multi-developer and deployed environments, preserving migration history ensures schema changes are applied consistently and predictably. Forward-only migrations prevent desynchronization across developer databases, maintain version history, guarantee zero regression across environments, and preserve migration provenance and audit lineage.
+- **Trade-off**: Requires maintaining multiple incremental migration files in the repository.
 
 ---
 
@@ -287,16 +287,6 @@ This document records the architectural, mathematical, and implementation decisi
 
 ---
 
-### Decision 28: Forward-Only Database Migrations
-- **Decision**: Maintain migrations as an immutable append-only record of database schema evolution.
-- **Options Considered**:
-  1. Re-generating single migration files.
-  2. Forward-only numbered migration scripts.
-- **Why Chosen**: Guarantees zero regression across environments and maintains migration lineage.
-- **Trade-off**: Multiple migration scripts must be retained in the repository.
-
----
-
 ### Decision 29: AI Fallback Is Manual Entry, Never a Fake Reading
 - **Decision**: Eliminate any heuristic or mock OCR fallback in production code paths. When the Groq Vision model is unavailable, missing an API key, times out, or produces unreadable/invalid data, the service strictly returns `{"readable": False, "fallback": "manual"}` and records outcome `fallback_manual`. The frontend displays a clear notice and prompts the clerk for manual entry.
 - **Options Considered**:
@@ -308,7 +298,7 @@ This document records the architectural, mathematical, and implementation decisi
 ---
 
 ### Decision 30: Server-Side Mismatch Block for Confirmed AI Readings
-- **Decision**: Allow optional `ai_reading_id` on issue creation and old-gold creation endpoints. If supplied and the clerk's entered value differs from the confirmed reading text, the server rejects the request with HTTP 422 Unprocessable Entity and marks the reading's audit outcome as `mismatch_blocked`.
+- **Decision**: Allow optional `ai_reading_id` on issue creation, receipt creation, and old-gold creation endpoints. If supplied and the clerk's entered value differs from the confirmed reading text, the server rejects the request with HTTP 422 Unprocessable Entity and marks the reading's audit outcome as `mismatch_blocked`.
 - **Options Considered**:
   1. Client-side warning only in the UI.
   2. Server-side validation enforcing that entered values match the audit record.
@@ -321,8 +311,8 @@ This document records the architectural, mathematical, and implementation decisi
 - **Decision**: Load `GROQ_VISION_MODEL` and `GROQ_TEXT_MODEL` strictly from environment variables without default model name fallbacks in the application codebase.
 - **Options Considered**:
   1. Hardcoding default model names in `config.py`.
-  2. Reading model names exclusively from environment settings.
-- **Why Chosen**: AI model offerings and deprecation schedules evolve rapidly. Requiring model names to be declared via `.env` ensures operators verify active model availability in their Groq console (e.g. `llama-3.2-11b-vision-preview` or `llama-3.2-90b-vision-preview` for vision, `llama-3.3-70b-versatile` or `llama-3.1-8b-instant` for text) rather than relying on stale defaults.
+  2. Reading model names exclusively from environment configuration.
+- **Why Chosen**: AI model offerings and deprecation schedules evolve rapidly. Requiring model names to be declared via environment configuration ensures operators select and verify active model availability in their provider console rather than relying on hardcoded or outdated defaults in code.
 - **Trade-off**: Missing environment variables will disable AI vision features and trigger manual fallback.
 
 ---
