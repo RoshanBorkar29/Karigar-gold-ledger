@@ -66,6 +66,9 @@ class KarigarBalanceSummaryRow:
     karigar_code: str
     karigar_name: str
     total_fine_balance_mg: int
+    total_issued_fine_mg: int = 0
+    total_returned_fine_mg: int = 0
+    open_jobs_count: int = 0
 
     @property
     def balance_mg(self) -> int:
@@ -471,7 +474,10 @@ def all_karigar_balances(
             k.id AS karigar_id,
             k.code AS karigar_code,
             k.name AS karigar_name,
-            COALESCE(SUM(i.issued_mg), 0) - COALESCE(SUM(r.returned_mg), 0) AS total_fine_balance_mg
+            COALESCE(SUM(i.issued_mg), 0) AS total_issued_fine_mg,
+            COALESCE(SUM(r.returned_mg), 0) AS total_returned_fine_mg,
+            COALESCE(SUM(i.issued_mg), 0) - COALESCE(SUM(r.returned_mg), 0) AS total_fine_balance_mg,
+            COUNT(DISTINCT CASE WHEN j.status = 'open' THEN j.id END) AS open_jobs_count
         FROM karigars k
         LEFT JOIN jobs j ON j.karigar_id = k.id
         LEFT JOIN (
@@ -502,6 +508,9 @@ def all_karigar_balances(
             karigar_code=str(row["karigar_code"]),
             karigar_name=str(row["karigar_name"]),
             total_fine_balance_mg=int(row["total_fine_balance_mg"]),
+            total_issued_fine_mg=int(row["total_issued_fine_mg"]),
+            total_returned_fine_mg=int(row["total_returned_fine_mg"]),
+            open_jobs_count=int(row["open_jobs_count"]),
         )
         for row in rows
     ]

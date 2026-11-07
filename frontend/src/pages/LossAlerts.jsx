@@ -127,7 +127,7 @@ export default function LossAlerts() {
     );
   }
 
-  const openCount = alerts.filter((a) => a.status === "open").length;
+  const openCount = alerts.filter((a) => a.status === "open" || a.status === "new").length;
   const reviewedCount = alerts.filter((a) => a.status === "reviewed").length;
 
   return (

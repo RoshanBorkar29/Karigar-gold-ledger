@@ -71,6 +71,10 @@ class KarigarBalanceSummaryRowRead(BaseModel):
     karigar_code: str
     karigar_name: str
     total_fine_balance_mg: int
+    total_issued_fine_mg: int = 0
+    total_returned_fine_mg: int = 0
+    net_outstanding_fine_mg: int = 0
+    open_jobs_count: int = 0
 
     model_config = ConfigDict(from_attributes=True)
 

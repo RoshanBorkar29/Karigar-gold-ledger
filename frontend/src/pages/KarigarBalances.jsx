@@ -142,7 +142,10 @@ export default function KarigarBalances() {
   // Grand totals
   const totalIssuedMg = summaryList.reduce((acc, row) => acc + (row.total_issued_fine_mg || 0), 0);
   const totalReturnedMg = summaryList.reduce((acc, row) => acc + (row.total_returned_fine_mg || 0), 0);
-  const totalOutstandingMg = summaryList.reduce((acc, row) => acc + (row.net_outstanding_fine_mg || 0), 0);
+  const totalOutstandingMg = summaryList.reduce(
+    (acc, row) => acc + (row.net_outstanding_fine_mg ?? row.total_fine_balance_mg ?? 0),
+    0
+  );
 
   return (
     <AppShell
@@ -261,17 +264,17 @@ export default function KarigarBalances() {
                 </TableCell>
                 <TableCell align="right">
                   <GoldNumber
-                    value={row.net_outstanding_fine_mg}
+                    value={row.net_outstanding_fine_mg ?? row.total_fine_balance_mg ?? 0}
                     size="base"
                     align="right"
-                    isNegative={row.net_outstanding_fine_mg < 0}
+                    isNegative={(row.net_outstanding_fine_mg ?? row.total_fine_balance_mg ?? 0) < 0}
                     negativeLabel="Karigar surplus"
                   />
                 </TableCell>
                 <TableCell align="center">
                   <StatusBadge
-                    status={row.open_jobs_count > 0 ? "open" : "closed"}
-                    label={`${row.open_jobs_count} open`}
+                    status={(row.open_jobs_count || 0) > 0 ? "open" : "closed"}
+                    label={`${row.open_jobs_count || 0} open`}
                   />
                 </TableCell>
                 <TableCell align="right">

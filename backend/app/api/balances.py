@@ -34,6 +34,10 @@ def get_all_karigar_balances(
             karigar_code=r.karigar_code,
             karigar_name=r.karigar_name,
             total_fine_balance_mg=r.total_fine_balance_mg,
+            total_issued_fine_mg=getattr(r, "total_issued_fine_mg", 0),
+            total_returned_fine_mg=getattr(r, "total_returned_fine_mg", 0),
+            net_outstanding_fine_mg=r.total_fine_balance_mg,
+            open_jobs_count=getattr(r, "open_jobs_count", 0),
         )
         for r in rows
     ]

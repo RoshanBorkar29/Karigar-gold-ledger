@@ -35,7 +35,10 @@ def list_loss_alerts(
         .outerjoin(Job, Job.id == LossAlert.job_id)
     )
     if status_filter:
-        stmt = stmt.where(LossAlert.status == status_filter.lower())
+        s = status_filter.lower().strip()
+        if s == "open":
+            s = "new"
+        stmt = stmt.where(LossAlert.status == s)
     stmt = stmt.order_by(LossAlert.created_at.desc())
 
     rows = db.execute(stmt).all()
