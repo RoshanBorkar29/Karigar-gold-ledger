@@ -47,6 +47,8 @@ export default function ReceiptEntry() {
     new Date().toISOString().slice(0, 10)
   );
   const [note, setNote] = useState("");
+  const [confirmedReadingId, setConfirmedReadingId] = useState(null);
+  const [isMismatchBlocked, setIsMismatchBlocked] = useState(false);
   const [showPhotoReader, setShowPhotoReader] = useState(false);
 
   const [jobSettlement, setJobSettlement] = useState(null);
@@ -139,14 +141,20 @@ export default function ReceiptEntry() {
     // Zero on incomplete input
   }
 
-  const handlePhotoConfirmed = ({ valueStr }) => {
+  const handlePhotoConfirmed = ({ readingId, valueStr }) => {
     setGrossInput(valueStr);
+    setConfirmedReadingId(readingId);
     setShowPhotoReader(false);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setFormError(null);
+
+    if (isMismatchBlocked) {
+      setFormError("Cannot submit while entered weight differs from confirmed instrument photo reading.");
+      return;
+    }
 
     if (!selectedJobId) {
       setFormError("Please select an active open job order.");
@@ -180,6 +188,7 @@ export default function ReceiptEntry() {
         entry_date: entryDate,
         huid: kind === "finished" ? huid.trim().toUpperCase() : undefined,
         note: note.trim() || undefined,
+        ai_reading_id: confirmedReadingId || undefined,
       };
 
       const result = await api.createReceipt(payload);
@@ -201,6 +210,8 @@ export default function ReceiptEntry() {
       setGrossInput("");
       setHuid("");
       setNote("");
+      setConfirmedReadingId(null);
+      setIsMismatchBlocked(false);
 
       const updatedS = await api.getJobSettlement(selectedJobId);
       setJobSettlement(updatedS);
@@ -471,7 +482,7 @@ export default function ReceiptEntry() {
                   </div>
 
                   {/* Photo Reader */}
-                  {showPhotoReader && (
+                  {(showPhotoReader || isMismatchBlocked) && (
                     <div className="col-span-12">
                       <PhotoReader
                         mode="scale"
@@ -479,6 +490,7 @@ export default function ReceiptEntry() {
                         onClose={() => setShowPhotoReader(false)}
                         currentTypedValue={grossInput}
                         onReadingConfirmed={handlePhotoConfirmed}
+                        onMismatchStateChange={setIsMismatchBlocked}
                       />
                     </div>
                   )}

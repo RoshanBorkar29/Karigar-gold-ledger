@@ -14,6 +14,7 @@ class ReceiptCreate(BaseModel):
     huid: str | None = Field(default=None, description="Hallmark identification code (required for finished pieces)")
     entry_date: date
     note: str | None = None
+    ai_reading_id: int | None = Field(default=None, description="Optional audit reference to an AI scale reading")
 
 
 class ReceiptRead(BaseModel):

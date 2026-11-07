@@ -470,6 +470,116 @@ def test_old_gold_creation_server_side_mismatch_block(client: TestClient, auth_t
     assert resp_match.status_code == 201
 
 
+def test_receipt_creation_server_side_mismatch_block(client: TestClient, auth_tokens, session: Session):
+    """Receipt creation rejects with 422 if typed value != confirmed AI reading."""
+    headers = auth_tokens["clerk_headers"]
+
+    # Setup Karigar, ItemCategory, Job, and initial gold issue
+    karigar = Karigar(code="K-RCT-AI", name="Receipt AI Karigar", is_active=True)
+    category = ItemCategory(name="Bangles AI")
+    session.add_all([karigar, category])
+    session.flush()
+
+    job = Job(
+        job_no="JOB-RCT-AI-01",
+        karigar_id=karigar.id,
+        category_id=category.id,
+        description="Plain gold bangle",
+        wastage_bp=300,
+        status="open",
+        opened_on=date(2026, 11, 1),
+    )
+    session.add(job)
+    session.flush()
+
+    # Issue 150.000 g gold to job so receipt of 100.000 g is valid (no over-return)
+    resp_issue = client.post(
+        "/api/issues",
+        json={
+            "job_id": job.id,
+            "gross_mg": 150000,
+            "purity_bp": 9160,
+            "entry_date": "2026-11-01",
+        },
+        headers=headers,
+    )
+    assert resp_issue.status_code == 201
+
+    # Create confirmed AI scale reading for 100.000 g
+    reading = AiReading(
+        kind="scale",
+        image_path="receipt_scale.jpg",
+        model_name="llama-3.2-11b-vision-preview",
+        ai_value_text="100.000",
+        ai_unit="g",
+        ai_confidence=98,
+        ai_readable=True,
+        confirmed_value_text="100.000",
+        outcome="confirmed",
+        created_by=auth_tokens["clerk_id"],
+    )
+    session.add(reading)
+    session.flush()
+
+    # Case 1: Non-existent reading ID returns 422
+    resp_missing = client.post(
+        "/api/receipts",
+        json={
+            "job_id": job.id,
+            "kind": "finished",
+            "gross_mg": 100000,
+            "purity_bp": 9160,
+            "huid": "RCT123",
+            "entry_date": "2026-11-01",
+            "ai_reading_id": 999999,
+        },
+        headers=headers,
+    )
+    assert resp_missing.status_code == 422
+    assert "not found" in resp_missing.json()["detail"]
+
+    # Case 2: Mismatched gross weight (95.000 g != 100.000 g) returns 422
+    resp_mismatch = client.post(
+        "/api/receipts",
+        json={
+            "job_id": job.id,
+            "kind": "finished",
+            "gross_mg": 95000,
+            "purity_bp": 9160,
+            "huid": "RCT123",
+            "entry_date": "2026-11-01",
+            "ai_reading_id": reading.id,
+        },
+        headers=headers,
+    )
+    assert resp_mismatch.status_code == 422
+    assert "does not match confirmed AI scale reading" in resp_mismatch.json()["detail"]
+
+    session.refresh(reading)
+    assert reading.outcome == "mismatch_blocked"
+
+    # Reset reading outcome
+    reading.outcome = "confirmed"
+    session.flush()
+
+    # Case 3: Matching gross weight (100.000 g == 100.000 g) succeeds
+    resp_match = client.post(
+        "/api/receipts",
+        json={
+            "job_id": job.id,
+            "kind": "finished",
+            "gross_mg": 100000,
+            "purity_bp": 9160,
+            "huid": "RCT123",
+            "entry_date": "2026-11-01",
+            "ai_reading_id": reading.id,
+        },
+        headers=headers,
+    )
+    assert resp_match.status_code == 201
+
+
+
 def test_ai_loss_explanation_finance_head(client: TestClient, auth_tokens, session: Session):
     """Finance head requests AI loss explanation draft for a karigar."""
     f_headers = auth_tokens["finance_headers"]

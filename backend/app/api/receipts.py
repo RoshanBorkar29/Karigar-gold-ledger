@@ -3,11 +3,13 @@
 from datetime import date
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, get_db, require_clerk_or_finance
+from app.core.gold import fmt_g
+from app.models.ai_reading import AiReading
 from app.models.entry_void import EntryVoid
 from app.models.job import Job
 from app.models.karigar import Karigar
@@ -27,6 +29,23 @@ def record_receipt(
     current_user: Annotated[User, Depends(require_clerk_or_finance)],
 ) -> ReceiptRead:
     """Record finished jewellery, scrap, or filings returned from a karigar."""
+    if data.ai_reading_id is not None:
+        ai_reading = db.get(AiReading, data.ai_reading_id)
+        if not ai_reading:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"AI reading ID {data.ai_reading_id} not found",
+            )
+        expected_val = (ai_reading.confirmed_value_text or ai_reading.ai_value_text or "").strip()
+        typed_val = fmt_g(data.gross_mg)
+        if expected_val and typed_val != expected_val:
+            ai_reading.outcome = "mismatch_blocked"
+            db.commit()
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Entered gross weight ({typed_val} g) does not match confirmed AI scale reading ({expected_val} g)",
+            )
+
     receipt = ledger.create_receipt(
         db,
         job_id=data.job_id,
