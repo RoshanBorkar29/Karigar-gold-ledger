@@ -44,10 +44,10 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-[100dvh] w-full grid grid-cols-1 lg:grid-cols-[55%_45%] antialiased bg-background">
-      {/* LEFT: Brand panel */}
+    <div className="min-h-[100dvh] w-full flex flex-col lg:grid lg:grid-cols-[55%_45%] antialiased bg-background overflow-x-hidden">
+      {/* LEFT: Brand panel (compact 120px top strip on mobile, full column on desktop >=1024px) */}
       <div
-        className="relative overflow-hidden flex flex-col justify-between p-8 lg:p-12 text-[#FBF9F4]"
+        className="relative overflow-hidden flex flex-col justify-center lg:justify-between h-[120px] min-h-[120px] max-h-[120px] lg:h-full lg:min-h-[100dvh] lg:max-h-none p-4 sm:p-6 lg:p-12 text-[#FBF9F4] shrink-0"
         style={{
           background: "linear-gradient(135deg, #6F5418 0%, #8A6A1F 100%)",
         }}
@@ -91,25 +91,25 @@ export default function Login() {
 
         {/* Brand content */}
         <div className="relative z-10 flex flex-col justify-between h-full">
-          {/* Top-left: Product name */}
+          {/* Top: Product name */}
           <div>
-            <span className="font-sans text-[20px] font-semibold text-[#FBF9F4] tracking-tight">
+            <span className="font-sans text-sm sm:text-base lg:text-[20px] font-semibold text-[#FBF9F4] tracking-tight">
               Karigar Ledger
             </span>
           </div>
 
           {/* Middle: Headline + Supporting line */}
-          <div className="my-auto py-8">
-            <h1 className="text-[32px] font-semibold text-[#FBF9F4] leading-tight max-w-[420px] m-0">
+          <div className="my-0 lg:my-auto py-0 lg:py-8">
+            <h1 className="text-base sm:text-lg lg:text-[32px] font-semibold text-[#FBF9F4] leading-tight max-w-[420px] m-0">
               Every gram, accounted for.
             </h1>
-            <p className="text-[16px] text-[#FBF9F4]/80 mt-3 max-w-[420px] m-0 leading-relaxed font-normal">
+            <p className="hidden lg:block text-[16px] text-[#FBF9F4]/80 mt-3 max-w-[420px] m-0 leading-relaxed font-normal">
               Issue, receive and reconcile gold for every karigar, any day.
             </p>
           </div>
 
-          {/* Bottom: Ledger preview panel */}
-          <div className="max-w-[380px] w-full bg-[#FBF9F4]/[0.10] border border-[#FBF9F4]/20 rounded-[8px] p-5">
+          {/* Bottom: Ledger preview panel (hidden on mobile under 1024px) */}
+          <div className="hidden lg:block max-w-[380px] w-full bg-[#FBF9F4]/[0.10] border border-[#FBF9F4]/20 rounded-[8px] p-5">
             <div className="space-y-2.5 font-mono tabular-nums text-sm">
               <div className="login-row-1 flex justify-between items-center text-[#FBF9F4]">
                 <span>Issued</span>
@@ -131,8 +131,8 @@ export default function Login() {
         </div>
       </div>
 
-      {/* RIGHT: Form side */}
-      <div className="bg-background flex items-center justify-center p-6 lg:p-12">
+      {/* RIGHT: Form side (fills remaining space with 16px padding on mobile) */}
+      <div className="flex-1 bg-background flex items-center justify-center p-4 sm:p-6 lg:p-12">
         <div className="w-full max-w-[360px] space-y-6">
           {/* Header */}
           <div>
