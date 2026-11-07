@@ -4,6 +4,25 @@ import { Eye, EyeOff } from "lucide-react";
 import { useAuth } from "../lib/auth";
 
 /**
+ * Deterministic configuration for 9 decorative gold coins:
+ * - 3 small (16 to 20px, opacity 0.35, blur 1.5px)
+ * - 3 medium (26 to 30px, opacity 0.55, blur 0.5px)
+ * - 3 large (36 to 42px, opacity 0.8, no blur)
+ * Durations 14 to 24s, negative animation-delays, drift 20 to 50px, rotateY spin.
+ */
+const COINS_CONFIG = [
+  { id: 1, size: 40, left: "14%", duration: "16s", delay: "-4.5s", drift: "35px", spin: 360, opacity: 0.8, blur: 0, staticTop: "15%" },
+  { id: 2, size: 28, left: "28%", duration: "19s", delay: "-13.2s", drift: "-30px", spin: -360, opacity: 0.55, blur: 0.5, staticTop: "26%" },
+  { id: 3, size: 18, left: "8%", duration: "22s", delay: "-2.8s", drift: "22px", spin: 360, opacity: 0.35, blur: 1.5, staticTop: "42%" },
+  { id: 4, size: 38, left: "64%", duration: "20s", delay: "-11.4s", drift: "-40px", spin: -360, opacity: 0.8, blur: 0, staticTop: "52%" },
+  { id: 5, size: 30, left: "48%", duration: "23s", delay: "-6.7s", drift: "45px", spin: 360, opacity: 0.55, blur: 0.5, staticTop: "68%" },
+  { id: 6, size: 20, left: "38%", duration: "15s", delay: "-9.1s", drift: "-35px", spin: -360, opacity: 0.35, blur: 1.5, staticTop: "84%" },
+  { id: 7, size: 42, left: "82%", duration: "18s", delay: "-8.3s", drift: "28px", spin: 360, opacity: 0.8, blur: 0, staticTop: "76%" },
+  { id: 8, size: 26, left: "76%", duration: "17s", delay: "-15.0s", drift: "-25px", spin: -360, opacity: 0.55, blur: 0.5, staticTop: "36%" },
+  { id: 9, size: 16, left: "90%", duration: "24s", delay: "-17.6s", drift: "30px", spin: 360, opacity: 0.35, blur: 1.5, staticTop: "20%" },
+];
+
+/**
  * Calm, professional split-layout login page.
  * Left: Deep warm bronze brand panel with fine pattern and ledger preview.
  * Right: Clean form on warm parchment background (#F3EFE6) without card borders or shadows.
@@ -86,6 +105,78 @@ export default function Login() {
         <div className="login-decorative-sweep-container" aria-hidden="true">
           <div className="login-decorative-sweep-track">
             <div className="login-decorative-sweep-line" />
+          </div>
+        </div>
+
+        {/* Reusable inline SVG symbol for gold coin */}
+        <svg
+          className="hidden"
+          aria-hidden="true"
+          style={{ position: "absolute", width: 0, height: 0 }}
+        >
+          <defs>
+            <radialGradient id="coin-gold-radial" cx="35%" cy="35%" r="65%">
+              <stop offset="0%" stopColor="#F6EDD2" />
+              <stop offset="45%" stopColor="#DFB94F" />
+              <stop offset="100%" stopColor="#C9A441" />
+            </radialGradient>
+            <symbol id="gold-coin" viewBox="0 0 100 100">
+              <circle cx="50" cy="50" r="48" fill="url(#coin-gold-radial)" />
+              <circle cx="50" cy="50" r="45.5" fill="none" stroke="#8A6A1F" strokeWidth="1.5" />
+              <circle
+                cx="50"
+                cy="50"
+                r="33.6"
+                fill="none"
+                stroke="#B8932F"
+                strokeWidth="1"
+                strokeOpacity="0.6"
+              />
+              <path
+                d="M 23 44 A 32 32 0 0 1 44 23"
+                fill="none"
+                stroke="#FFFFFF"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeOpacity="0.5"
+              />
+            </symbol>
+          </defs>
+        </svg>
+
+        {/* Decorative falling gold coins layer (desktop only, masked over text areas) */}
+        <div className="login-coins-layer hidden lg:block" aria-hidden="true">
+          <div className="login-coins-headline-mask">
+            <div className="login-coins-ledger-mask">
+              <div className="login-coins-stage">
+                {COINS_CONFIG.map((coin) => (
+                  <div
+                    key={coin.id}
+                    className="coin-falling"
+                    style={{
+                      left: coin.left,
+                      width: `${coin.size}px`,
+                      height: `${coin.size}px`,
+                      opacity: coin.opacity,
+                      filter: coin.blur > 0 ? `blur(${coin.blur}px)` : undefined,
+                      animationDuration: coin.duration,
+                      animationDelay: coin.delay,
+                      "--coin-drift": coin.drift,
+                      "--coin-spin": `${coin.spin}deg`,
+                      "--coin-static-top": coin.staticTop,
+                    }}
+                  >
+                    <svg
+                      viewBox="0 0 100 100"
+                      className="w-full h-full block"
+                      aria-hidden="true"
+                    >
+                      <use href="#gold-coin" xlinkHref="#gold-coin" />
+                    </svg>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
 

@@ -146,3 +146,74 @@ body {
   }
 }
 
+/* Decorative falling gold coins layer for brand panel */
+.login-coins-layer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 1;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 10%, black 90%, transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0%, black 10%, black 90%, transparent 100%);
+}
+
+@media (max-width: 1023px) {
+  .login-coins-layer {
+    display: none !important;
+  }
+}
+
+.login-coins-headline-mask {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  -webkit-mask-image: radial-gradient(ellipse 380px 220px at 28% 48%, rgba(0, 0, 0, 0.20) 0%, black 85%);
+  mask-image: radial-gradient(ellipse 380px 220px at 28% 48%, rgba(0, 0, 0, 0.20) 0%, black 85%);
+}
+
+.login-coins-ledger-mask {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  -webkit-mask-image: radial-gradient(ellipse 320px 180px at 26% 86%, rgba(0, 0, 0, 0.15) 0%, black 85%);
+  mask-image: radial-gradient(ellipse 320px 180px at 26% 86%, rgba(0, 0, 0, 0.15) 0%, black 85%);
+}
+
+.login-coins-stage {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  perspective: 750px;
+  perspective-origin: 50% 50%;
+}
+
+@keyframes fallCoin {
+  0% {
+    transform: translate3d(0, -70px, 0) rotateY(0deg);
+  }
+  100% {
+    transform: translate3d(var(--coin-drift, 30px), calc(100vh + 80px), 0) rotateY(var(--coin-spin, 360deg));
+  }
+}
+
+.coin-falling {
+  position: absolute;
+  top: 0;
+  will-change: transform;
+  animation-name: fallCoin;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .coin-falling {
+    animation: none !important;
+    top: var(--coin-static-top, 50%) !important;
+    transform: translate3d(0, 0, 0) rotateY(20deg) !important;
+  }
+}
+
+
