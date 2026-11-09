@@ -1,0 +1,28 @@
+# Web framework
+fastapi>=0.115
+uvicorn[standard]>=0.30
+python-multipart>=0.0.9      # file/photo uploads
+
+# Validation and config
+pydantic>=2.7
+pydantic-settings>=2.3
+
+# Database
+sqlalchemy>=2.0
+alembic>=1.13
+psycopg[binary]>=3.2         # PostgreSQL driver (psycopg 3)
+
+# Auth and security
+PyJWT>=2.8
+bcrypt>=4.2
+slowapi>=0.1.9               # rate limiting on AI endpoints
+
+# AI
+groq>=0.11
+
+# Images (synthetic scale/karat photos, upload checks)
+pillow>=10.3
+
+# Tests
+pytest>=8.2
+httpx>=0.27                  # needed by FastAPI's TestClient

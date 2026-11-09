@@ -13,6 +13,17 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "postgresql+psycopg://postgres:postgres@localhost:5432/karigar_ledger"
     DATABASE_URL_TEST: str | None = None
 
+    @field_validator("DATABASE_URL", mode="before")
+    @classmethod
+    def normalize_database_url(cls, v: str) -> str:
+        if isinstance(v, str):
+            v = v.strip()
+            if v.startswith("postgres://"):
+                v = "postgresql+psycopg://" + v[len("postgres://"):]
+            elif v.startswith("postgresql://") and not v.startswith("postgresql+psycopg://"):
+                v = "postgresql+psycopg://" + v[len("postgresql://"):]
+        return v
+
     # Production requirement: JWT_SECRET has NO default and must be >= 32 characters
     JWT_SECRET: str
     JWT_EXPIRE_MINUTES: int = 1440

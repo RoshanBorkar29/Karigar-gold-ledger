@@ -29,6 +29,7 @@ from app.models.loss_alert import LossAlert
 from app.models.receipt import Receipt
 from app.models.user import User
 from app.models.vault_movement import VaultMovement
+from app.services.drift import scan_and_generate_loss_alerts
 
 
 def seed_data() -> None:
@@ -392,6 +393,10 @@ def seed_data() -> None:
                     )
                     db.add(rec_scr)
                     db.flush()
+
+        # 8. Run initial drift scan to populate alerts
+        alerts = scan_and_generate_loss_alerts(db)
+        print(f"Generated {len(alerts)} initial loss alerts.")
 
         db.commit()
         print("Database multi-karigar seeding completed successfully.")

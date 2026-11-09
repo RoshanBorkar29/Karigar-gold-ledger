@@ -31,25 +31,25 @@ Production and local operations manual for the **Karigar Gold Ledger & Old-Gold 
 
 3. **Install Backend Dependencies**
    ```bash
-   python -m venv backend/.venv
+   python -m venv .venv
    # Windows:
-   backend\.venv\Scripts\activate
+   .venv\Scripts\activate
    # Linux / macOS:
-   source backend/.venv/bin/activate
+   source .venv/bin/activate
 
-   pip install -r backend/requirements.txt
+   pip install -r requirements.txt
    ```
 
 4. **Run Database Migrations**
    Apply Alembic migrations to build the complete ledger schema, check constraints, and `txn_seq` sequence:
    ```bash
-   alembic -c backend/alembic.ini upgrade head
+   alembic upgrade head
    ```
 
 5. **Seed Demo Data & Multi-Karigar History**
    Populate users, item categories, agreed wastage matrices, historical closed jobs, vault bullion movements, and Murugesan's active job (`JOB-2026-001`):
    ```bash
-   python backend/seed.py
+   python seed.py
    ```
 
 6. **Run the Backend API Server**
@@ -69,14 +69,14 @@ Production and local operations manual for the **Karigar Gold Ledger & Old-Gold 
    *Access the web UI at `http://localhost:5173`.*
 
 8. **Execute Automated Tests**
-   Run the full 220-test automated verification suite against the isolated test database:
+   Run the full 234-test automated verification suite against the isolated test database:
    ```bash
    # In PowerShell:
    $env:PYTHONPATH="backend"
    $env:DATABASE_URL_TEST="postgresql+psycopg://postgres:postgres@localhost:5432/karigar_test"
    pytest backend/tests -v
    ```
-   *Expected result: 220 passed, 0 failed, 0 skipped.*
+   *Expected result: 234 passed, 0 failed, 0 skipped.*
 
 ---
 
@@ -102,21 +102,21 @@ Production and local operations manual for the **Karigar Gold Ledger & Old-Gold 
    - Python version **3.12** is automatically detected via `runtime.txt` (`python-3.12.9`) and `.python-version`.
 3. **Build Command**:
    ```bash
-   pip install -r backend/requirements.txt
+   pip install -r requirements.txt
    ```
 4. **Pre-Deploy / Release Command** (Runs migrations before container switch):
    ```bash
-   alembic -c backend/alembic.ini upgrade head
+   alembic upgrade head
    ```
 5. **Start Command**:
    ```bash
-   uvicorn app.main:app --app-dir backend --host 0.0.0.0 --port ${PORT:-8000}
+   uvicorn app.main:app --app-dir backend --host 0.0.0.0 --port $PORT
    ```
-   *(Also specified in repository `Procfile`).*
+   *(Also specified in repository `render.yaml` and `Procfile`).*
 6. **Populating Hosted Database**:
    Once the service is deployed, open the Render/Railway web shell and run the seed script:
    ```bash
-   python backend/seed.py
+   python seed.py
    ```
    *The seed script reads `DATABASE_URL` directly from the environment and is completely idempotent.*
 7. **Free Tier Cold Starts**:
