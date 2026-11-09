@@ -201,6 +201,12 @@ def test_loss_alert_scan_and_review_workflow(client: TestClient, auth_tokens, se
         user_id=f_id,
         huid="HUID99",
     )
+    ledger.close_job(
+        session,
+        job_id=job.id,
+        closed_on=date(2026, 11, 2),
+        user_id=f_id,
+    )
     session.flush()
 
     # 1. Inspect drift endpoint: now has sample_size=3 and triggers anomaly (> 2 stddev AND > 50 bp)
