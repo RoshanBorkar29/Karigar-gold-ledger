@@ -28,7 +28,7 @@ export default function LossAlerts() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [scanning, setScanning] = useState(false);
 
-  // AI Explanation Modal State
+  // Explanation Modal State
   const [selectedAlertForAi, setSelectedAlertForAi] = useState(null);
   const [aiNotes, setAiNotes] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
@@ -84,7 +84,7 @@ export default function LossAlerts() {
       setAiResponse(res);
       fetchAlerts();
     } catch (err) {
-      alert("Failed to generate AI explanation: " + err.message);
+      alert("Failed to generate explanation: " + err.message);
     } finally {
       setAiLoading(false);
     }
@@ -132,8 +132,8 @@ export default function LossAlerts() {
 
   return (
     <AppShell
-      title="Loss-Drift Alerts & Craft Audit"
-      subtitle="Statistical early-warning system flagging abnormal karigar wastage before month-end reconciliation"
+      title="Loss alerts"
+      subtitle="Karigars whose recent loss differs from their own usual loss. Items to review, not conclusions."
       actions={
         <div className="flex items-center gap-3">
           <select
@@ -159,29 +159,29 @@ export default function LossAlerts() {
         </div>
       }
     >
-      {/* Top Metric Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+      {/* Top Metric Cards: Two cards only */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
         <div className="p-4 bg-surface border border-border rounded flex flex-col justify-between">
           <div className="flex items-center justify-between">
             <span className="text-xs text-muted font-medium">
-              Open Anomaly Alerts
+              For review
             </span>
-            <AlertTriangle className="w-4 h-4 text-status-problem stroke-[2]" />
+            <AlertTriangle className="w-4 h-4 text-status-review stroke-[2]" />
           </div>
           <div className="my-2">
-            <span className="font-mono text-xl font-semibold text-status-problem">
+            <span className="font-mono text-xl font-semibold text-ink">
               {openCount}
             </span>
           </div>
-          <span className="text-xs text-muted">
-            Karigars exceeding baseline + 50 bp / 1 stddev
+          <span className="text-xs text-muted leading-relaxed">
+            Flagged when recent loss is above usual loss by more than 2 standard deviations and by more than 0.50%, with at least 3 closed jobs.
           </span>
         </div>
 
         <div className="p-4 bg-surface border border-border rounded flex flex-col justify-between">
           <div className="flex items-center justify-between">
             <span className="text-xs text-muted font-medium">
-              Reviewed & Audited
+              Reviewed
             </span>
             <CheckCircle2 className="w-4 h-4 text-status-ok stroke-[2]" />
           </div>
@@ -190,25 +190,8 @@ export default function LossAlerts() {
               {reviewedCount}
             </span>
           </div>
-          <span className="text-xs text-muted">
+          <span className="text-xs text-muted leading-relaxed">
             Assessed with workshop explanatory notes
-          </span>
-        </div>
-
-        <div className="p-4 bg-surface border border-border rounded flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-muted font-medium">
-              AI Auditor Engine
-            </span>
-            <Sparkles className="w-4 h-4 text-bronze stroke-[2]" />
-          </div>
-          <div className="my-2">
-            <span className="text-base font-semibold text-ink">
-              Groq Llama-3.3 70B
-            </span>
-          </div>
-          <span className="text-xs text-muted">
-            Objective craftsmanship loss explanations
           </span>
         </div>
       </div>
@@ -227,12 +210,15 @@ export default function LossAlerts() {
       ) : (
         <div className="space-y-4">
           <h2 className="text-sm font-semibold text-ink mb-2">
-            For Review ({alerts.length})
+            For review ({alerts.length})
           </h2>
 
           {alerts.map((alert) => {
             const diffBp = alert.recent_loss_bp - alert.baseline_mean_bp;
-            const isAiSource = (alert.explanation_source || "").toLowerCase().includes("ai") || (alert.explanation_source || "").toLowerCase().includes("groq");
+            const isAiSource =
+              (alert.explanation_source || "").toLowerCase().includes("ai") ||
+              (alert.explanation_source || "").toLowerCase().includes("llm") ||
+              (alert.explanation_source || "").toLowerCase().includes("groq");
 
             return (
               <div
@@ -287,13 +273,17 @@ export default function LossAlerts() {
                     <span className="text-xs text-muted block mb-0.5">
                       Difference
                     </span>
-                    <GoldNumber
-                      value={diffBp}
-                      type="purity"
-                      size="sm"
-                      isExcess={diffBp > 0}
-                      excessLabel="Exceeds baseline"
-                    />
+                    <span className="inline-flex flex-col items-start">
+                      <span className={`font-mono tabular-nums text-sm font-normal ${diffBp > 0 ? "text-status-review" : "text-ink"}`}>
+                        {fmtPurity(diffBp)}
+                        <span className="text-muted text-xs font-sans font-normal ml-1 select-none">%</span>
+                      </span>
+                      {diffBp > 0 && (
+                        <span className="text-xs font-sans font-medium text-status-review mt-0.5">
+                          Above usual
+                        </span>
+                      )}
+                    </span>
                   </div>
 
                   <div>
@@ -306,19 +296,19 @@ export default function LossAlerts() {
                   </div>
                 </div>
 
-                {/* Explanation text box */}
+                {/* Note text box */}
                 <div className="p-3 bg-background border border-border rounded text-xs space-y-1.5">
                   <div className="flex items-center justify-between">
                     <span className="font-medium text-ink flex items-center gap-1.5">
                       <Sparkles className="w-3.5 h-3.5 text-bronze stroke-[2]" />
-                      Craft Analysis Note
+                      Note
                     </span>
                     <span className="text-[11px] text-muted font-mono uppercase">
-                      Source: {isAiSource ? "AI-written" : "Standard text"}
+                      Source: {isAiSource ? "Written by AI" : "Standard text"}
                     </span>
                   </div>
                   <p className="text-muted leading-relaxed m-0 whitespace-pre-line">
-                    {alert.explanation || "No craft analysis note provided yet."}
+                    {alert.explanation || "No note provided yet."}
                   </p>
                 </div>
 
@@ -334,7 +324,7 @@ export default function LossAlerts() {
                     }}
                     icon={Sparkles}
                   >
-                    AI Craft Analysis
+                    Explain
                   </Button>
 
                   <Button
@@ -356,16 +346,16 @@ export default function LossAlerts() {
         </div>
       )}
 
-      {/* AI Explanation Dialog */}
+      {/* Explanation Dialog */}
       {selectedAlertForAi && (
         <div className="fixed inset-0 bg-ink/50 flex items-center justify-center p-4 z-50">
           <div className="w-full max-w-lg bg-surface p-6 border border-border rounded shadow-lg">
             <h3 className="text-base font-semibold text-ink flex items-center gap-2 m-0">
               <Sparkles className="w-4 h-4 text-bronze stroke-[2]" />
-              Generate Objective Loss Explanation
+              Explain loss: {selectedAlertForAi.karigar_name}
             </h3>
             <p className="text-xs text-muted mt-1 m-0">
-              Produce a professional audit note citing exact metrics ({fmtPurity(selectedAlertForAi.recent_loss_bp)}% vs {fmtPurity(selectedAlertForAi.baseline_mean_bp)}%) and craft factors (crucible wear, filigree setting, casting porosity).
+              Produce an explanation citing exact metrics ({fmtPurity(selectedAlertForAi.recent_loss_bp)}% vs {fmtPurity(selectedAlertForAi.baseline_mean_bp)}%).
             </p>
 
             <div className="mt-4">
@@ -382,7 +372,7 @@ export default function LossAlerts() {
             {aiResponse && (
               <div className="mt-4 p-3 rounded bg-status-ok-tint border border-status-ok/20 text-xs">
                 <span className="font-semibold text-status-ok block mb-1">
-                  Generated Note ({aiResponse.source}):
+                  Generated Note ({aiResponse.source === "llm" || aiResponse.source === "ai" ? "Written by AI" : "Standard text"}):
                 </span>
                 <p className="text-ink leading-relaxed m-0">{aiResponse.explanation}</p>
               </div>
@@ -402,7 +392,7 @@ export default function LossAlerts() {
                 onClick={handleRequestAiExplanation}
                 loading={aiLoading}
               >
-                Generate Explanation
+                Explain
               </Button>
             </div>
           </div>

@@ -41,10 +41,10 @@ def seed_data() -> None:
         # -------------------------------------------------------------------
         user_records = {}
         for email, role, full_name, pwd in [
-            ("clerk@karigar.local", "issue_clerk", "Issue Clerk", settings.SEED_CLERK_PASSWORD),
-            ("finance@karigar.local", "finance_head", "Finance Head", settings.SEED_FINANCE_PASSWORD),
-            ("clerk@workshop.local", "issue_clerk", "Issue Clerk", "clerk123"),
-            ("finance@workshop.local", "finance_head", "Finance Head", "finance123"),
+            ("clerk@karigar.local", "issue_clerk", "Meena Rao", settings.SEED_CLERK_PASSWORD),
+            ("finance@karigar.local", "finance_head", "Anil Menon", settings.SEED_FINANCE_PASSWORD),
+            ("clerk@workshop.local", "issue_clerk", "Meena Rao", "clerk123"),
+            ("finance@workshop.local", "finance_head", "Anil Menon", "finance123"),
         ]:
             u = db.query(User).filter(User.email == email).first()
             if not u:
@@ -58,6 +58,9 @@ def seed_data() -> None:
                 db.add(u)
                 db.flush()
                 print(f"Created user: {email}")
+            else:
+                u.full_name = full_name
+                db.flush()
             user_records[email] = u
 
         clerk = user_records["clerk@karigar.local"]

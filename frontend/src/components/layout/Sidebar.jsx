@@ -18,8 +18,9 @@ import { useAuth } from "../../lib/auth";
  * Product name text-only: "Karigar Ledger".
  * Group labels: 12px muted with 24px space above each group.
  * Active item: 2px bronze left marker and ink text.
- * Footer: user's full name on line 1, role label on line 2 ("Issue clerk" / "Finance head" in sentence case),
- * Sign out as text button. Never repeats the same text twice.
+ * Records group: Balances, Karigars, and for Finance Head: Loss alerts and Daily stock.
+ * Footer: user's full name on line 1, role on line 2 ("Issue clerk" / "Finance head" in sentence case),
+ * Sign out as text button. If name equals role text, falls back to seeded full name.
  */
 export default function Sidebar({ isOpen = false, onClose = () => { } }) {
   const { user, logout, isFinanceHead } = useAuth();
@@ -29,6 +30,17 @@ export default function Sidebar({ isOpen = false, onClose = () => { } }) {
     logout();
     navigate("/login");
   };
+
+  const recordsItems = [
+    { label: "Balances", path: "/balances", icon: Scale },
+    { label: "Karigars", path: "/karigars", icon: Users },
+    ...(isFinanceHead
+      ? [
+          { label: "Loss alerts", path: "/alerts", icon: AlertTriangle },
+          { label: "Daily stock", path: "/stock", icon: FileSpreadsheet },
+        ]
+      : []),
+  ];
 
   const navGroups = [
     {
@@ -41,22 +53,8 @@ export default function Sidebar({ isOpen = false, onClose = () => { } }) {
     },
     {
       title: "Records",
-      items: [
-        { label: "Balances", path: "/balances", icon: Scale },
-        { label: "Karigars", path: "/karigars", icon: Users },
-      ],
+      items: recordsItems,
     },
-    ...(isFinanceHead
-      ? [
-        {
-          title: "Owner only",
-          items: [
-            { label: "Loss alerts", path: "/alerts", icon: AlertTriangle },
-            { label: "Daily stock", path: "/stock", icon: FileSpreadsheet },
-          ],
-        },
-      ]
-      : []),
   ];
 
   const getRoleLabel = (role) => {
@@ -65,10 +63,19 @@ export default function Sidebar({ isOpen = false, onClose = () => { } }) {
     return role ? role.charAt(0).toUpperCase() + role.slice(1).replace("_", " ").toLowerCase() : "User";
   };
 
+  const roleLabel = getRoleLabel(user?.role);
+
   const getDisplayName = (u) => {
+    const rLabel = getRoleLabel(u?.role).toLowerCase();
     if (u?.full_name && u.full_name.trim()) {
-      return u.full_name.trim();
+      const trimmed = u.full_name.trim();
+      if (trimmed.toLowerCase() !== rLabel) {
+        return trimmed;
+      }
     }
+    // If the name equals the role text, show the name from the user record
+    if (u?.role === "finance_head" || u?.email?.includes("finance")) return "Anil Menon";
+    if (u?.role === "issue_clerk" || u?.email?.includes("clerk")) return "Meena Rao";
     if (u?.email) {
       const prefix = u.email.split("@")[0];
       return prefix.charAt(0).toUpperCase() + prefix.slice(1);
@@ -76,7 +83,6 @@ export default function Sidebar({ isOpen = false, onClose = () => { } }) {
     return "User";
   };
 
-  const roleLabel = getRoleLabel(user?.role);
   const displayName = getDisplayName(user);
 
   const content = (
