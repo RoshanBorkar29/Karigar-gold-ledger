@@ -41,13 +41,22 @@ def build_explanation_prompt(
     recent_pct: str,
     baseline_pct: str,
     sample_size: int,
+    diff_pct: str | None = None,
 ) -> str:
     """Build neutral audit explanation prompt containing only computed figures."""
+    if diff_pct is None:
+        try:
+            diff_bp = int(round(float(recent_pct) * 100)) - int(round(float(baseline_pct) * 100))
+            diff_pct = _fmt_bp(diff_bp)
+        except Exception:
+            diff_pct = "0.00"
+
     return (
         f"Write a concise, professional audit explanation (1-2 sentences) for jewellery workshop finance records. "
-        f"Artisan: {karigar_name} ({karigar_code}). "
+        f"Karigar: {karigar_name} ({karigar_code}). "
         f"Recent loss: {recent_pct}%. "
-        f"Historical baseline average: {baseline_pct}%. "
+        f"Historical usual loss: {baseline_pct}%. "
+        f"Difference: {diff_pct} percentage points. "
         f"Sample size: {sample_size} jobs. "
         f"State only the computed statistical figures comparing the recent loss to the baseline average. "
         f"Do not suggest or speculate on any causes (such as crucible, porosity, setting, theft, or any physical factors). "
@@ -61,11 +70,24 @@ def render_explanation_template(
     recent_pct: str,
     baseline_pct: str,
     sample_size: int,
+    diff_pct: str | None = None,
 ) -> str:
-    """Render neutral fallback template using only computed figures."""
+    """Render neutral fallback template using only computed figures.
+
+    Format:
+    Karigar {name} ({code}): recent loss {recent}% is {diff} percentage points above their usual {baseline}% across {n} closed jobs. Worth reviewing.
+    """
+    if diff_pct is None:
+        try:
+            diff_bp = int(round(float(recent_pct) * 100)) - int(round(float(baseline_pct) * 100))
+            diff_pct = _fmt_bp(diff_bp)
+        except Exception:
+            diff_pct = "0.00"
+
     return (
-        f"Artisan {karigar_name} ({karigar_code}) recorded recent loss of {recent_pct}% "
-        f"against baseline historical average of {baseline_pct}% across {sample_size} jobs."
+        f"Karigar {karigar_name} ({karigar_code}): recent loss {recent_pct}% is "
+        f"{diff_pct} percentage points above their usual {baseline_pct}% across {sample_size} closed jobs. "
+        f"Worth reviewing."
     )
 
 
@@ -85,6 +107,7 @@ def generate_loss_explanation(
     """
     recent_pct = _fmt_bp(recent_loss_bp)
     baseline_pct = _fmt_bp(baseline_mean_bp)
+    diff_pct = _fmt_bp(recent_loss_bp - baseline_mean_bp)
 
     client = get_groq_client()
     if client and has_groq_key() and settings.GROQ_TEXT_MODEL:
@@ -93,6 +116,7 @@ def generate_loss_explanation(
             karigar_code=karigar_code,
             recent_pct=recent_pct,
             baseline_pct=baseline_pct,
+            diff_pct=diff_pct,
             sample_size=sample_size,
         )
         try:
@@ -126,6 +150,6 @@ def generate_loss_explanation(
         recent_pct=recent_pct,
         baseline_pct=baseline_pct,
         sample_size=sample_size,
+        diff_pct=diff_pct,
     )
     return template, "template"
-

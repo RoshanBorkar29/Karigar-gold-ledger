@@ -180,10 +180,12 @@ def test_render_explanation_template_neutral():
         baseline_pct="2.00",
         sample_size=8,
     )
-    assert "Murugan" in template
+    assert "Karigar Murugan" in template
     assert "K-002" in template
     assert "4.10%" in template
     assert "2.00%" in template
-    assert "8 jobs" in template
+    assert "2.10 percentage points above" in template
+    assert "8 closed jobs" in template
+    assert "Worth reviewing." in template
     assert not contains_forbidden_words(template)
 
