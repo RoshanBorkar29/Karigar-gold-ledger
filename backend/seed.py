@@ -25,6 +25,7 @@ from app.models.item_category import ItemCategory
 from app.models.job import Job
 from app.models.karigar import Karigar
 from app.models.karigar_category_wastage import KarigarCategoryWastage
+from app.models.loss_alert import LossAlert
 from app.models.receipt import Receipt
 from app.models.user import User
 from app.models.vault_movement import VaultMovement
@@ -247,15 +248,25 @@ def seed_data() -> None:
         assert tx_scrap.fine_mg == 3023, f"Murugesan scrap fine_mg changed: {tx_scrap.fine_mg}"
 
         # -------------------------------------------------------------------
-        # 7. Multi-Karigar Demo History (6-8 CLOSED jobs each over past 4 months)
+        # 7. Multi-Karigar Demo History (6-7 CLOSED jobs each over past 4 months)
         # -------------------------------------------------------------------
+        # Clean up previous demo jobs and alerts to allow deterministic re-seeding
+        db.query(LossAlert).delete()
+        for code in ["K-001", "K-002", "K-003", "K-004", "K-005"]:
+            demo_jobs = db.query(Job).filter(Job.job_no.like(f"JOB-{code}-%")).all()
+            for dj in demo_jobs:
+                db.query(Receipt).filter(Receipt.job_id == dj.id).delete()
+                db.query(Issue).filter(Issue.job_id == dj.id).delete()
+                db.delete(dj)
+        db.flush()
+
         # Start ~120 days ago (July 2026) up to late October 2026
         base_start = date(2026, 7, 5)
 
         # Karigar job count schedule:
         # K-001: 6 closed jobs (+ 1 open brief job)
         # K-002: 7 closed jobs (stable)
-        # K-003: 7 closed jobs (Selvam P: last 2 jobs upward drift)
+        # K-003: 7 closed jobs (Selvam P: last 2 jobs upward drift by ~1.0 to 1.5 percentage points)
         # K-004: 7 closed jobs (stable)
         # K-005: 6 closed jobs (stable)
         job_counts = {
@@ -323,14 +334,13 @@ def seed_data() -> None:
                 fine_issued = existing_issue.fine_mg
 
                 # Determine historical return & wastage
-                # If drifter on last 2 jobs (jobs 6 and 7): drift upward significantly (+120 bp, +150 bp)
-                if is_drifter and j_idx == num_jobs - 1:
-                    actual_loss_bp = agreed_bp + 120
-                elif is_drifter and j_idx == num_jobs:
-                    actual_loss_bp = agreed_bp + 150
+                # If drifter on last 2 jobs (jobs 6 and 7): drift upward by ~1.0 to 1.5 percentage points above baseline
+                if is_drifter and j_idx in (num_jobs - 1, num_jobs):
+                    noise = rng.randint(100, 140)
+                    actual_loss_bp = 265 + noise  # ~365 to 405 bp (3.65% - 4.05%)
                 else:
-                    # Normal stable fluctuation around agreed % with small noise (-10 to +10 bp)
-                    noise = rng.randint(-10, 10)
+                    # Normal stable fluctuation around agreed % with small noise
+                    noise = rng.randint(-30, 5)
                     actual_loss_bp = max(0, agreed_bp + noise)
 
                 actual_loss_mg = (fine_issued * actual_loss_bp + 5000) // 10000
@@ -341,7 +351,9 @@ def seed_data() -> None:
                 scrap_fine_mg = total_return_fine_mg - fin_fine_mg
 
                 fin_gross_mg = (fin_fine_mg * 10000 + 4580) // 9160
-                scrap_gross_mg = (scrap_fine_mg * 10000 + 4580) // 9160
+                fin_actual_fine = fine_weight_mg(fin_gross_mg, 9160)
+                scrap_needed_fine = max(0, total_return_fine_mg - fin_actual_fine)
+                scrap_gross_mg = (scrap_needed_fine * 10000 + 4580) // 9160
 
                 # 1. Finished receipt
                 tx_rec_fin_id = f"TX-RF-{code}-{j_idx:03d}"
